@@ -1,25 +1,30 @@
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 
-pub const HW_TASK_TRAIT_TY: &str = "RticTask";
+pub const HWT_TRAIT_TY: &str = "RticTask";
+pub const SWT_TRAIT_TY: &str = "RticSwTask";
 pub const IDLE_TRAIT_TY: &str = "RticIdleTask";
+
 pub const MUTEX_TY: &str = "RticMutex";
 
 pub(crate) fn get_rtic_traits_mod() -> TokenStream2 {
     let hw_task_trait = hw_task_trait();
-    let _idle_trait = idle_task_trait();
+    let soft_task_trait = soft_task_trait();
+    let idle_trait = idle_task_trait();
     let mutex_trait = mutex_trait();
     quote! {
         /// Module defining rtic traits
         mod rtic_traits {
             #hw_task_trait
+            #soft_task_trait
+            #idle_trait
             #mutex_trait
         }
     }
 }
 
 fn hw_task_trait() -> TokenStream2 {
-    let hw_task = format_ident!("{HW_TASK_TRAIT_TY}");
+    let hw_task = format_ident!("{HWT_TRAIT_TY}");
     quote! {
         /// Trait for a hardware task
         pub trait #hw_task {
@@ -40,6 +45,20 @@ fn idle_task_trait() -> TokenStream2 {
             fn init() -> Self;
             /// Function to be executing when no other task is running
             fn exec(&mut self) -> !;
+        }
+    }
+}
+
+fn soft_task_trait() -> TokenStream2 {
+    let software_task = format_ident!("{SWT_TRAIT_TY}");
+    quote! {
+        /// Trait for an idle task
+        pub trait #software_task {
+            type SpawnInput;
+            /// Task local variables initialization routine
+            fn init() -> Self;
+            /// Function to be executing when the scheduled software task is dispatched
+            fn exec(&mut self, input: Self::SpawnInput);
         }
     }
 }

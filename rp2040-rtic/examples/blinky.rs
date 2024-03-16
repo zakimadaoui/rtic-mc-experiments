@@ -5,7 +5,7 @@
 #[used]
 pub static BOOT2: [u8; 256] = rp2040_boot2::BOOT_LOADER_GENERIC_03H;
 
-#[rtic::app(device=rp2040_hal::pac, peripherals = false)]
+#[rtic::app(device=rp2040_hal::pac, peripherals = false, dispatchers = [DMA_IRQ_0])]
 pub mod my_app {
 
     use cortex_m::asm;
@@ -85,7 +85,7 @@ pub mod my_app {
         }
     }
 
-    #[hw_task(binds = TIMER_IRQ_0 , priority = 1, shared = [alarm, led])]
+    #[task(binds = TIMER_IRQ_0 , priority = 1, shared = [alarm, led])]
     struct MyTask {
         /* local resources */
         is_high: bool,
@@ -106,6 +106,9 @@ pub mod my_app {
                     self.is_high = true;
                 }
             });
+
+            let _a = MyTask2::spawn(1);
+
             self.shared().alarm.lock(|alarm0| {
                 let _ = alarm0.schedule(MicrosDurationU32::millis(DELAY));
                 alarm0.clear_interrupt();
@@ -113,17 +116,34 @@ pub mod my_app {
         }
     }
 
-    #[hw_task(binds = TIMER_IRQ_1 , priority = 2, shared = [led])]
+    #[task(priority = 2, shared = [led])]
     struct MyTask2;
-    impl RticTask for MyTask2 {
+    impl RticSwTask for MyTask2 {
+        type SpawnInput = u8;
         fn init() -> Self {
             Self
         }
 
-        fn exec(&mut self) {}
+        fn exec(&mut self, _input: u8) {
+            self.shared().led.lock(|_led| {
+                // todo!()
+            })
+        }
     }
 
-    #[hw_task(binds = TIMER_IRQ_2 , priority = 3, shared = [alarm])]
+
+    #[task(priority = 2, shared = [led])]
+    struct MyTask7;
+    impl RticSwTask for MyTask7 {
+        type SpawnInput = u8;
+        fn init() -> Self {
+            Self
+        }
+
+        fn exec(&mut self, _input: u8) {}
+    }
+
+    #[task(binds = TIMER_IRQ_2 , priority = 3, shared = [alarm])]
     struct MyTask3;
     impl RticTask for MyTask3 {
         fn init() -> Self {
@@ -138,12 +158,12 @@ pub mod my_app {
         /* local resources */
         count: u32,
     }
-    impl RticTask for MyIdleTask {
+    impl RticIdleTask for MyIdleTask {
         fn init() -> Self {
             Self { count: 0 }
         }
 
-        fn exec(&mut self) {
+        fn exec(&mut self) -> ! {
             loop {
                 self.count += 1;
                 info!("looping in idle... {}", self.count);

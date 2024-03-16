@@ -1,6 +1,7 @@
 // Note: most of the code here is taken from rtic repo
-
 #![allow(clippy::inline_always)]
+
+pub use heapless::spsc::Queue;
 
 pub use cortex_m::{
     asm::nop,

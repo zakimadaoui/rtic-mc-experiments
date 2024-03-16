@@ -2,7 +2,7 @@ use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 
 use crate::common::rtic_traits::MUTEX_TY;
-use crate::parser::ast::{HardwareTask, SharedResources};
+use crate::parser::ast::{RticTask, SharedResources};
 
 impl SharedResources {
     pub fn generate_shared_resources_def(&self) -> TokenStream2 {
@@ -54,7 +54,7 @@ impl SharedResources {
         }
     }
 
-    pub fn generate_shared_for_task(&self, task: &HardwareTask) -> TokenStream2 {
+    pub fn generate_shared_for_task(&self, task: &RticTask) -> TokenStream2 {
         let task_resources_idents = &task.args.shared_idents;
         if task_resources_idents.is_empty() {
             return quote!();
@@ -71,6 +71,8 @@ impl SharedResources {
             }
         });
         let field_and_proxytype2 = field_and_proxytype.clone();
+
+        // TODO: replace `shared(&self)` with individual `shared_resource_name(&self) -> proxy_type`
 
         let task_ty = task.name();
         let task_prio = task.args.priority;

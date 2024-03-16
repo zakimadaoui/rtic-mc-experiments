@@ -1,12 +1,17 @@
 extern crate proc_macro;
 
 use proc_macro::TokenStream;
+use std::fs;
 
 use proc_macro2::TokenStream as TokenStream2;
+use project_root::get_project_root;
 use syn::{ItemMod, parse_macro_input};
 
+pub use crate::analysis::AppAnalysis;
+use crate::codegen::CodeGen;
 pub use crate::parser::ParsedRticApp;
 
+mod analysis;
 mod codegen;
 mod common;
 mod parser;
@@ -14,9 +19,11 @@ mod parser;
 /** todo:
 * [ ] add pre_init code generation to enable interrupts and configure thier priorities
 * [ ] init context with device and core peripherals
-* [ ] shared resources for idle task (we can treat idle as a hardware task with 0 priority)
-* [ ] separate trait for idle task with execute -> !
-* [ ] Hook for run() closure for architectures supporting basepri
+* [ ] run() closure in irq handlers + trait func for this
+
+* add some analysis to check if:
+[ ] idle task actaully implements RticIdleTask (probably same for Sw and Hw)
+[ ] idle task must not have a priority attr and must not have binds
 **/
 
 pub struct RticAppBuilder {
@@ -40,15 +47,33 @@ impl RticAppBuilder {
             Ok(parsed) => parsed,
             Err(e) => return e.to_compile_error().into(),
         };
+        let analysis = match AppAnalysis::run(&parsed_app) {
+            Ok(a) => a,
+            Err(e) => return e.to_compile_error().into(),
+        };
 
-        codegen::generate_rtic_app(&self, &parsed_app).into()
+        let code = CodeGen::new(&self, &parsed_app, &analysis).run();
+
+        if let Ok(out) = get_project_root() {
+            let _ = fs::create_dir_all(out.join("examples"));
+            let _ = fs::write(
+                out.join("examples/__expanded.rs"),
+                code.to_string().as_bytes(),
+            );
+        }
+
+        code.into()
     }
 }
 
 pub trait RticCoreImplementor {
     /// Code to be inserted before call to Global init() and task init() functions
     /// This can for example enable all interrupts used by the user
-    fn pre_init(&self, app_info: &ParsedRticApp) -> Option<TokenStream2>;
+    fn pre_init(
+        &self,
+        app_info: &ParsedRticApp,
+        app_analysis: &AppAnalysis,
+    ) -> Option<TokenStream2>;
 
     /// Code to be used to enter a critical section.
     /// This must disable interrupts fully.
@@ -64,7 +89,11 @@ pub trait RticCoreImplementor {
 
     /// Based on the information provided by the parsed application, such as Shared Resources priorities
     /// and Tasks priorities. Return the generated code for statically stored priority masks
-    fn compute_priority_masks(&self, app_info: &ParsedRticApp) -> TokenStream2;
+    fn compute_priority_masks(
+        &self,
+        app_info: &ParsedRticApp,
+        app_analysis: &AppAnalysis,
+    ) -> TokenStream2;
 
     /// Provide the body mutex implementation:
     /// impl #mutex_ty for #proxy_name {
@@ -78,9 +107,29 @@ pub trait RticCoreImplementor {
     ///         /* Also remember that you can have access to a global pre-computed priority mask(s) implemented by [compute_priority_masks()] */
     ///     }
     /// }
+    ///
+    // TODO: this interface can be improved by providing a struct like this:
+    /*
+    LockParams {
+        resource_handle : TokenStream, // &mut resource
+        current_task_priority : TokenStream, // u16 value of current task priority
+        ceiling_value: TokenStream, // u16 value of resource priority
+        lock_closure_handle: TokenStream, // the f(resource: &ResourceType)
+    }
+
+    // Then implementation can look like this
+    quote! {
+        unsafe {rtic::export::lock(#resource_handle,
+                                   #current_task_priority,
+                                   #ceiling_value,
+                                   &__rtic_internal_MASKS, // comes from  `compute_priority_masks(...)` implementation
+                                   #lock_closure_handle
+                                   );}
+    }
+    */
     fn impl_lock_mutex(&self) -> TokenStream2;
 
-    /// Implementation for WFI (wakeup from interrupt) instruction to be used in default idle task
+    /// Implementation for WFI (Wait for interrupt) instruction to be used in default idle task
     fn wfi(&self) -> Option<TokenStream2>;
 
     /// Priority constraints

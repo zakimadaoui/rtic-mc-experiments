@@ -12,35 +12,23 @@ pub struct InitTask {
 #[derive(Debug)]
 pub struct IdleTaskAttrs;
 
-#[derive(Debug)]
-pub struct IdleTask {
-    pub attrs: IdleTaskAttrs,
-    pub struct_name: Ident,
-    pub instance_name: Ident,
-    pub idle_struct: ItemStruct,
-    pub struct_impl: ItemImpl,
-}
-
-const DEFAULT_PRIORITY: u16 = 0;
-
-#[derive(Debug)]
-pub struct HardwareTaskArgs {
-    pub interrupt_handler_name: syn::Path,
+#[derive(Debug, Default)]
+pub struct TaskArgs {
+    pub interrupt_handler_name: Option<syn::Ident>,
     pub priority: u16,
     // list of identifiers for shared resources
     pub shared_idents: Vec<Ident>,
 }
 
-impl HardwareTaskArgs {
+impl TaskArgs {
     pub fn parse(args: proc_macro2::TokenStream) -> syn::Result<Self> {
-        let args_span = args.span();
-        let mut binds: Option<syn::Path> = None;
+        let mut interrupt_handler_name: Option<syn::Path> = None;
         let mut priority: Option<syn::LitInt> = None;
         let mut shared: Option<syn::ExprArray> = None;
 
         syn::meta::parser(|meta| {
             if meta.path.is_ident("binds") {
-                binds = Some(meta.value()?.parse()?);
+                interrupt_handler_name = Some(meta.value()?.parse()?);
             } else if meta.path.is_ident("priority") {
                 priority = Some(meta.value()?.parse()?);
             } else if meta.path.is_ident("shared") {
@@ -50,16 +38,12 @@ impl HardwareTaskArgs {
         })
         .parse2(args)?;
 
-        let Some(interrupt_handler_name) = binds else {
-            return Err(syn::Error::new(
-                args_span,
-                "A hardwar task must bind to an interrupt",
-            ));
-        };
+        let interrupt_handler_name = interrupt_handler_name
+            .map(|i| Ident::new(&i.to_token_stream().to_string(), Span::call_site()));
 
         let priority = priority
             .and_then(|p| p.base10_parse().ok())
-            .unwrap_or(DEFAULT_PRIORITY);
+            .unwrap_or_default();
 
         let shared_idents = if let Some(shared) = shared {
             let mut elements = Vec::with_capacity(shared.elems.len());
@@ -80,16 +64,26 @@ impl HardwareTaskArgs {
     }
 }
 
+/// Alias for hardware task. The constructor of this type must guarantee that this task
+/// is bound to an interrupt handler. i.e. the `interrupt_handler_name` in `args` should not be None
+pub type HardwareTask = RticTask;
+
+/// Alias for software tasks. Software task have `interrupt_handler_name` set to None
+pub type SoftwareTask = RticTask;
+
+/// Alias for software tasks. Software task have `interrupt_handler_name` set to None and priority 0
+pub type IdleTask = RticTask;
+
 #[derive(Debug)]
-pub struct HardwareTask {
-    pub args: HardwareTaskArgs,
+pub struct RticTask {
+    pub args: TaskArgs,
     pub task_struct: ItemStruct,
     pub struct_impl: ItemImpl,
 }
 
-impl HardwareTask {
-    pub fn name(&self) -> Ident {
-        Ident::new(&self.task_struct.ident.to_string(), Span::call_site())
+impl RticTask {
+    pub fn name(&self) -> &Ident {
+        &self.task_struct.ident
     }
 
     pub fn name_uppercase(&self) -> Ident {
@@ -108,14 +102,14 @@ impl HardwareTask {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SharedElement {
     pub ident: Ident,
     pub ty: syn::Type,
     pub priority: u16,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SharedResources {
     pub strct: ItemStruct,
     pub resources: Vec<SharedElement>,
@@ -144,6 +138,7 @@ pub struct AppArgs {
     // path to peripheral crate
     pub device: syn::Path,
     pub peripherals: bool,
+    pub dispatchers: Vec<syn::Ident>,
 }
 
 impl AppArgs {
@@ -151,11 +146,14 @@ impl AppArgs {
         let args_span = args.span();
         let mut device: Option<syn::Path> = None;
         let mut peripherals: Option<syn::LitBool> = None;
+        let mut dispatchers: Option<syn::ExprArray> = None;
         syn::meta::parser(|meta| {
             if meta.path.is_ident("device") {
                 device = Some(meta.value()?.parse()?);
             } else if meta.path.is_ident("peripherals") {
                 peripherals = Some(meta.value()?.parse()?);
+            } else if meta.path.is_ident("dispatchers") {
+                dispatchers = Some(meta.value()?.parse()?);
             }
             Ok(())
         })
@@ -168,9 +166,21 @@ impl AppArgs {
             ));
         };
 
+        let dispatchers = dispatchers
+            .map(|e| {
+                e.elems
+                    .into_iter()
+                    .map(|element| {
+                        Ident::new(&element.to_token_stream().to_string(), Span::call_site())
+                    })
+                    .collect()
+            })
+            .unwrap_or(Vec::new());
+
         Ok(Self {
             device,
             peripherals: peripherals.map_or(false, |f| f.value),
+            dispatchers,
         })
     }
 }

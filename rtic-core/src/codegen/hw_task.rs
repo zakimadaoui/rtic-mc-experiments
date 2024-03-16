@@ -1,14 +1,13 @@
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 
-use crate::parser::ast::{HardwareTask, SharedResources};
+use crate::parser::ast::{HardwareTask, RticTask, SharedResources};
 
-impl HardwareTask {
+impl RticTask {
     /// Generates task definition, Context struct, resource proxies and binds task to appropriate interrupt
-    pub fn define_and_bind_token_stream(&self, shared_resources: &SharedResources) -> TokenStream2 {
+    pub fn generate_task_def(&self, shared_resources: &SharedResources) -> TokenStream2 {
         let task_ty = &self.task_struct.ident;
         let task_static_handle = &self.name_uppercase();
-        let task_irq_handler = &self.args.interrupt_handler_name;
         let task_struct = &self.task_struct;
         let task_impl = &self.struct_impl;
         let task_prio_impl = self.generate_priority_func();
@@ -19,13 +18,6 @@ impl HardwareTask {
             #task_struct
             #task_impl
             #task_prio_impl
-            #[allow(non_snake_case)]
-            #[no_mangle]
-            fn #task_irq_handler() {
-                unsafe {
-                    #task_static_handle.assume_init_mut().exec();
-                }
-            }
             #shared_mod
         }
     }
@@ -43,6 +35,23 @@ impl HardwareTask {
             impl #task_ty {
                 pub const fn priority() -> u16 {
                     #task_prio
+                }
+            }
+        }
+    }
+}
+
+impl HardwareTask {
+    /// Generates task definition, Context struct, resource proxies and binds task to appropriate interrupt
+    pub fn generate_hw_task_to_irq_binding(&self) -> TokenStream2 {
+        let task_static_handle = &self.name_uppercase();
+        let task_irq_handler = &self.args.interrupt_handler_name.clone().unwrap(); /* safe to unwrap as hw tasks are guaranteed to have an interrupt handler name */
+        quote! {
+            #[allow(non_snake_case)]
+            #[no_mangle]
+            fn #task_irq_handler() {
+                unsafe {
+                    #task_static_handle.assume_init_mut().exec();
                 }
             }
         }
