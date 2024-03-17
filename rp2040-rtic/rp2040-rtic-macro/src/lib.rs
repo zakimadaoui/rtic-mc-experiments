@@ -41,35 +41,24 @@ impl RticCoreImplementor for Rp2040Rtic {
         })
     }
 
-    fn compute_priority_masks(&self, app_info: &ParsedRticApp, app_analysis: &AppAnalysis) -> proc_macro2::TokenStream {
+    fn compute_priority_masks(&self, app_info: &ParsedRticApp, _app_analysis: &AppAnalysis) -> proc_macro2::TokenStream {
         let peripheral_crate = &app_info.args.device;
 
         // irq names from hadware tasks
-        let irq_list_as_u32 = app_info.hardware_tasks.iter().map(|t| {
-            let irq_name = &t.args.interrupt_handler_name;
-            quote! { #peripheral_crate::Interrupt::#irq_name as u32, }
+        let irq_list_as_u32 = app_info.hardware_tasks.iter().filter_map(|t| {
+            let irq_name = t.args.interrupt_handler_name.as_ref()?;
+            Some(quote! { #peripheral_crate::Interrupt::#irq_name as u32, })
         });
-
-        // irq names from software tasks
-        let irq_list_as_u32 = irq_list_as_u32.chain(app_analysis.dispatcher_priorities.values().map(|irq| {
-            quote! { #peripheral_crate::Interrupt::#irq as u32, }
-        }));
 
         let mut irq_prio_map = [Vec::new(), Vec::new(), Vec::new()];
         for hw_task in app_info.hardware_tasks.iter() {
             let prio = hw_task.args.priority;
             if (1..=3).contains(&prio) {
-                let irq_name = hw_task.args.interrupt_handler_name.as_ref().unwrap(); //safe to unwarap hw task irq ident
+                let Some(irq_name) = hw_task.args.interrupt_handler_name.as_ref() else {
+                    continue;
+                };
                 irq_prio_map[(prio - 1) as usize].push(quote! {
                     #peripheral_crate::Interrupt::#irq_name as u32,
-                })
-            }
-        }
-
-        for (prio, dispatcher) in app_analysis.dispatcher_priorities.iter() {
-            if (1_u16..=3).contains(&prio) {
-                irq_prio_map[(prio - 1) as usize].push(quote! {
-                    #peripheral_crate::Interrupt::#dispatcher as u32,
                 })
             }
         }

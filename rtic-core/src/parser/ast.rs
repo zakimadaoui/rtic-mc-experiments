@@ -9,9 +9,6 @@ pub struct InitTask {
     pub body: ItemFn,
 }
 
-#[derive(Debug)]
-pub struct IdleTaskAttrs;
-
 #[derive(Debug, Default)]
 pub struct TaskArgs {
     pub interrupt_handler_name: Option<syn::Ident>,
@@ -67,9 +64,6 @@ impl TaskArgs {
 /// Alias for hardware task. The constructor of this type must guarantee that this task
 /// is bound to an interrupt handler. i.e. the `interrupt_handler_name` in `args` should not be None
 pub type HardwareTask = RticTask;
-
-/// Alias for software tasks. Software task have `interrupt_handler_name` set to None
-pub type SoftwareTask = RticTask;
 
 /// Alias for software tasks. Software task have `interrupt_handler_name` set to None and priority 0
 pub type IdleTask = RticTask;
@@ -138,7 +132,6 @@ pub struct AppArgs {
     // path to peripheral crate
     pub device: syn::Path,
     pub peripherals: bool,
-    pub dispatchers: Vec<syn::Ident>,
 }
 
 impl AppArgs {
@@ -146,14 +139,11 @@ impl AppArgs {
         let args_span = args.span();
         let mut device: Option<syn::Path> = None;
         let mut peripherals: Option<syn::LitBool> = None;
-        let mut dispatchers: Option<syn::ExprArray> = None;
         syn::meta::parser(|meta| {
             if meta.path.is_ident("device") {
                 device = Some(meta.value()?.parse()?);
             } else if meta.path.is_ident("peripherals") {
                 peripherals = Some(meta.value()?.parse()?);
-            } else if meta.path.is_ident("dispatchers") {
-                dispatchers = Some(meta.value()?.parse()?);
             }
             Ok(())
         })
@@ -166,21 +156,9 @@ impl AppArgs {
             ));
         };
 
-        let dispatchers = dispatchers
-            .map(|e| {
-                e.elems
-                    .into_iter()
-                    .map(|element| {
-                        Ident::new(&element.to_token_stream().to_string(), Span::call_site())
-                    })
-                    .collect()
-            })
-            .unwrap_or(Vec::new());
-
         Ok(Self {
             device,
             peripherals: peripherals.map_or(false, |f| f.value),
-            dispatchers,
         })
     }
 }

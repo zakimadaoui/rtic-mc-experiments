@@ -2,21 +2,19 @@ use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 
 pub const HWT_TRAIT_TY: &str = "RticTask";
-pub const SWT_TRAIT_TY: &str = "RticSwTask";
+pub const SWT_TRAIT_TY: &str = "RticSwTask"; // TODO: this needs to be removed from rtic-core, it belongs to sw-pass
 pub const IDLE_TRAIT_TY: &str = "RticIdleTask";
 
 pub const MUTEX_TY: &str = "RticMutex";
 
 pub(crate) fn get_rtic_traits_mod() -> TokenStream2 {
     let hw_task_trait = hw_task_trait();
-    let soft_task_trait = soft_task_trait();
     let idle_trait = idle_task_trait();
     let mutex_trait = mutex_trait();
     quote! {
         /// Module defining rtic traits
         mod rtic_traits {
             #hw_task_trait
-            #soft_task_trait
             #idle_trait
             #mutex_trait
         }
@@ -48,21 +46,6 @@ fn idle_task_trait() -> TokenStream2 {
         }
     }
 }
-
-fn soft_task_trait() -> TokenStream2 {
-    let software_task = format_ident!("{SWT_TRAIT_TY}");
-    quote! {
-        /// Trait for an idle task
-        pub trait #software_task {
-            type SpawnInput;
-            /// Task local variables initialization routine
-            fn init() -> Self;
-            /// Function to be executing when the scheduled software task is dispatched
-            fn exec(&mut self, input: Self::SpawnInput);
-        }
-    }
-}
-
 fn mutex_trait() -> TokenStream2 {
     let mutex = format_ident!("{MUTEX_TY}");
     quote! {

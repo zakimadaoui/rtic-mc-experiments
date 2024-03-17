@@ -5,15 +5,17 @@ use std::fs;
 
 use proc_macro2::TokenStream as TokenStream2;
 use project_root::get_project_root;
-use syn::{ItemMod, parse_macro_input};
+use syn::{parse_macro_input, ItemMod};
 
 pub use crate::analysis::AppAnalysis;
 use crate::codegen::CodeGen;
+pub use crate::parser::ast::AppArgs;
 pub use crate::parser::ParsedRticApp;
 
 mod analysis;
 mod codegen;
 mod common;
+pub mod parse_utils;
 mod parser;
 
 /** todo:

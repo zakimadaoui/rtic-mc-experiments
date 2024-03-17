@@ -6,7 +6,7 @@ use syn::{parse::Parser, Attribute, Meta};
 
 pub struct RticAttr {
     pub name: Option<syn::Ident>,
-    pub elements: HashMap<syn::Ident, syn::Expr>,
+    pub elements: HashMap<String, syn::Expr>,
 }
 
 impl RticAttr {
@@ -42,7 +42,7 @@ impl RticAttr {
     pub fn parse_from_tokens(tokens: &TokenStream2) -> syn::Result<Self> {
         let mut elements = HashMap::new();
         syn::meta::parser(|meta| {
-            let ident = meta.path.get_ident().unwrap();
+            let ident = meta.path.get_ident().unwrap().to_string(); // TODO: throw an error instead of unwrap
             let value: syn::Expr = meta.value()?.parse()?;
             elements.insert(ident.clone(), value);
             Ok(())

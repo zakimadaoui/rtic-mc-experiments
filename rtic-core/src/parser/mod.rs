@@ -19,7 +19,6 @@ pub struct ParsedRticApp {
     pub init: InitTask,
     pub idle: Option<IdleTask>,
     pub hardware_tasks: Vec<HardwareTask>,
-    pub software_tasks: Vec<SoftwareTask>,
     pub user_includes: Vec<ItemUse>,
     pub other_code: Vec<Item>,
 }
@@ -113,11 +112,10 @@ impl ParsedRticApp {
 
         let init = Self::parse_init(inits, span, &shared)?;
         let idle = Self::construct_idle_task(idles, &task_impls)?;
-        let (hardware_tasks, software_tasks) =
-            Self::construct_rtic_tasks(task_structs, &task_impls)?;
+        let hardware_tasks = Self::construct_rtic_tasks(task_structs, &task_impls)?;
 
         // update shared resources priorities based on task priorities and the resources they share
-        analysis::update_resource_priorities(&mut shared, &hardware_tasks, &software_tasks)?;
+        analysis::update_resource_priorities(&mut shared, &hardware_tasks)?;
 
         Ok(Self {
             app_name,
@@ -126,7 +124,6 @@ impl ParsedRticApp {
             init,
             idle,
             hardware_tasks,
-            software_tasks,
             user_includes,
             other_code,
         })
@@ -180,12 +177,13 @@ impl ParsedRticApp {
     fn construct_rtic_tasks(
         task_structs: Vec<(ItemStruct, usize)>,
         task_impls: &HashMap<String, ItemImpl>,
-    ) -> syn::Result<(Vec<HardwareTask>, Vec<SoftwareTask>)> {
-        let tasks: syn::Result<Vec<RticTask>> = task_structs
+    ) -> syn::Result<Vec<RticTask>> {
+        task_structs
             .into_iter()
             .map(|(mut task_struct, attr_idx)| {
                 // parse the task attribute args
                 let attr = task_struct.attrs.remove(attr_idx);
+
                 let syn::Meta::List(args) = attr.meta else {
                     return Err(syn::Error::new(
                         attr.span(),
@@ -216,12 +214,7 @@ impl ParsedRticApp {
                     struct_impl: struct_impl.clone(),
                 })
             })
-            .collect();
-
-        let (hw_tasks, sw_tasks) = tasks?
-            .into_iter()
-            .partition(|task| task.args.interrupt_handler_name.is_some());
-        Ok((hw_tasks, sw_tasks))
+            .collect()
     }
 
     fn construct_idle_task(
@@ -242,7 +235,7 @@ impl ParsedRticApp {
                         format!("This task must implement {IDLE_TRAIT_TY} trait."),
                     ))?;
 
-            // remove the [#idle]
+            // remove the #[idle]
             let attrs = idle_struct.attrs.remove(init_attr_idx);
             let args = if let syn::Meta::List(args) = attrs.meta {
                 TaskArgs::parse(args.tokens)?

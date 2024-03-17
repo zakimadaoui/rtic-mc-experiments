@@ -8,7 +8,6 @@ use crate::RticAppBuilder;
 
 pub mod hw_task;
 mod shared_resources;
-mod sw_task;
 
 pub struct CodeGen<'a> {
     app: &'a ParsedRticApp,
@@ -73,23 +72,7 @@ impl<'a> CodeGen<'a> {
         let hw_tasks_binds = app
             .hardware_tasks
             .iter()
-            .map(|task| task.generate_hw_task_to_irq_binding());
-
-        // sw tasks
-        let sw_tasks_inits = app
-            .software_tasks
-            .iter()
-            .map(|task| task.init_token_steam());
-        let sw_tasks_def = app
-            .software_tasks
-            .iter()
-            .map(|task| task.generate_task_def(&app.shared));
-
-        let sw_dispatchers = sw_task::generate_sw_tasks_dispatchers(analysis);
-        let sw_task_spawn_impls = app
-            .software_tasks
-            .iter()
-            .map(|task| task.generate_sw_task_spawn_api(analysis));
+            .filter_map(|task| task.generate_hw_task_to_irq_binding());
 
         // shared resources
         let def_shared = app.shared.generate_shared_resources_def();
@@ -122,10 +105,6 @@ impl<'a> CodeGen<'a> {
                 ///======================== define and bind hw tasks to interrupts ======================
                 #(#hw_tasks_def)*
                 #(#hw_tasks_binds)*
-                ///======================= define and bind sw tasks to dispatchers ======================
-                #(#sw_tasks_def)*
-                #(#sw_task_spawn_impls)*
-                #sw_dispatchers
                 /// ==================================== rtic traits ====================================
                 pub use rtic_traits::*;
                 #rtic_traits_mod
@@ -140,7 +119,6 @@ impl<'a> CodeGen<'a> {
 
                     // init hardware and software tasks
                     unsafe {#(#hw_tasks_inits)*}
-                    unsafe {#(#sw_tasks_inits)*}
 
                     // user init code
                     unsafe {#shared_static.write(#init_task());}

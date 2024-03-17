@@ -43,10 +43,10 @@ impl RticTask {
 
 impl HardwareTask {
     /// Generates task definition, Context struct, resource proxies and binds task to appropriate interrupt
-    pub fn generate_hw_task_to_irq_binding(&self) -> TokenStream2 {
+    pub fn generate_hw_task_to_irq_binding(&self) -> Option<TokenStream2> {
         let task_static_handle = &self.name_uppercase();
-        let task_irq_handler = &self.args.interrupt_handler_name.clone().unwrap(); /* safe to unwrap as hw tasks are guaranteed to have an interrupt handler name */
-        quote! {
+        let task_irq_handler = &self.args.interrupt_handler_name.clone()?;
+        Some(quote! {
             #[allow(non_snake_case)]
             #[no_mangle]
             fn #task_irq_handler() {
@@ -54,6 +54,6 @@ impl HardwareTask {
                     #task_static_handle.assume_init_mut().exec();
                 }
             }
-        }
+        })
     }
 }
