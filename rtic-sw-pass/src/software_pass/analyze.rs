@@ -25,7 +25,7 @@ impl AppAnalysis {
         // check if the number of dispatchers meets the number of sw task priority groups
         let n_dispatchers = app.app_params.dispatchers.len();
         let n_priority_groups = sw_tasks_pgroups.len();
-        if n_dispatchers != n_priority_groups {
+        if n_dispatchers < n_priority_groups {
             return Err(syn::Error::new(
                 Span::call_site(),
                 format!("Expected {n_priority_groups} dispatchers, but found {n_dispatchers}."),

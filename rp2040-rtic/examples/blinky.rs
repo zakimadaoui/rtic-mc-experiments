@@ -5,11 +5,7 @@
 #[used]
 pub static BOOT2: [u8; 256] = rp2040_boot2::BOOT_LOADER_GENERIC_03H;
 
-#[rtic::app(
-    device=rp2040_hal::pac,
-    peripherals = false,
-
-)]
+#[rtic::app(device=rp2040_hal::pac, peripherals=false, dispatchers=[DMA_IRQ_0])]
 pub mod my_app {
 
     use cortex_m::asm;
@@ -120,32 +116,32 @@ pub mod my_app {
         }
     }
 
-    // #[task(priority = 2, shared = [led])]
-    // struct MyTask2;
-    // impl RticSwTask for MyTask2 {
-    //     type SpawnInput = u8;
-    //     fn init() -> Self {
-    //         Self
-    //     }
-    //
-    //     fn exec(&mut self, _input: u8) {
-    //         self.shared().led.lock(|_led| {
-    //
-    //         })
-    //     }
-    // }
-    //
-    //
-    // #[task(priority = 2, shared = [led])]
-    // struct MyTask7;
-    // impl RticSwTask for MyTask7 {
-    //     type SpawnInput = u8;
-    //     fn init() -> Self {
-    //         Self
-    //     }
-    // 
-    //     fn exec(&mut self, _input: u8) {}
-    // }
+    #[task(priority = 2, shared = [led])]
+    struct MyTask2;
+    impl RticSwTask for MyTask2 {
+        type SpawnInput = u8;
+        fn init() -> Self {
+            Self
+        }
+
+        fn exec(&mut self, _input: u8) {
+            self.shared().led.lock(|_led| {
+
+            })
+        }
+    }
+
+
+    #[task(priority = 2, shared = [led])]
+    struct MyTask7;
+    impl RticSwTask for MyTask7 {
+        type SpawnInput = u8;
+        fn init() -> Self {
+            Self
+        }
+
+        fn exec(&mut self, _input: u8) {}
+    }
 
     #[task(binds = TIMER_IRQ_2 , priority = 3, shared = [alarm])]
     struct MyTask3;

@@ -51,11 +51,28 @@ impl RticAppBuilder {
     }
 
     pub fn parse(self, args: TokenStream, input: TokenStream) -> TokenStream {
-        let app_module = parse_macro_input!(input as ItemMod);
+        let app_module = if let Some(ref sw_pass) = self.sw_pass {
+            let app_attrs = RticAttr::parse_from_tokens(&args.clone().into()).unwrap();
+            let code = sw_pass.run_pass(app_attrs, input.into()).unwrap();
+
+            if let Ok(out) = get_project_root() {
+                let _ = fs::create_dir_all(out.join("examples"));
+                let _ = fs::write(
+                    out.join("examples/__expanded_sw_pass.rs"),
+                    code.to_string().as_bytes(),
+                );
+            }
+
+            syn::parse2(code).unwrap()
+        } else {
+            parse_macro_input!(input as ItemMod)
+        };
+
         let parsed_app = match ParsedRticApp::parse(app_module.clone(), args.into()) {
             Ok(parsed) => parsed,
             Err(e) => return e.to_compile_error().into(),
         };
+
         let analysis = match AppAnalysis::run(&parsed_app) {
             Ok(a) => a,
             Err(e) => return e.to_compile_error().into(),

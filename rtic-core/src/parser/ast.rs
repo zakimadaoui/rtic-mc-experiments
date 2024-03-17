@@ -1,7 +1,7 @@
 use heck::ToSnakeCase;
 use proc_macro2::Span;
 use quote::ToTokens;
-use syn::{parse::Parser, spanned::Spanned, Ident, ItemFn, ItemImpl, ItemStruct};
+use syn::{Ident, ItemFn, ItemImpl, ItemStruct, parse::Parser, spanned::Spanned};
 
 #[derive(Debug)]
 pub struct InitTask {
@@ -144,6 +144,9 @@ impl AppArgs {
                 device = Some(meta.value()?.parse()?);
             } else if meta.path.is_ident("peripherals") {
                 peripherals = Some(meta.value()?.parse()?);
+            } else {
+                // this is somehow needed to advance the iterator
+                let _: syn::Result<syn::Expr> = meta.value()?.parse();
             }
             Ok(())
         })

@@ -50,11 +50,14 @@ pub fn generate(app: &ParsedApp, analysis: &AppAnalysis) -> TokenStream {
     };
 
     quote! {
-        #(#user_code)*
+        // TODO: use actual module signature given by the user
+        pub mod rtic_app {
+            #(#user_code)*
         /// ============================= Software-pass content ====================================
         #(#sw_tasks)*
         #dispatcher_tasks
         #sw_task_trait_def
+        }
     }
 }
 
@@ -85,7 +88,7 @@ fn generate_dispatcher_tasks(analysis: &AppAnalysis) -> TokenStream {
         let ready_queue_name = utils::priority_queue_ident(&prio_ty);
         let ready_queue_size = tasks.len() + 1; // queue size must always be one more than number of tasks
         let dispatcher_irq_name = dispatchers.get(prio).unwrap(); // safe to unwrap due to guarantees from analysis
-        let dispatcher_priority = prio.to_string();
+        let dispatcher_priority = prio;
         let dispatcher_task_ty = utils::dispatcher_ident(*prio);
 
         quote! {

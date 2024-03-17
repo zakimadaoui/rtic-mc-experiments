@@ -8,7 +8,7 @@ use proc_macro2::TokenStream;
 use rtic_core::parse_utils::RticAttr;
 use rtic_core::RticPass;
 
-pub struct ScSoftwarePass {}
+pub struct ScSoftwarePass;
 
 impl RticPass for ScSoftwarePass {
     fn run_pass(&self, params: RticAttr, app_mod: TokenStream) -> syn::Result<TokenStream> {

@@ -1,6 +1,6 @@
 use proc_macro::TokenStream;
 use quote::quote;
-use rtic_core::{AppAnalysis, ParsedRticApp, RticAppBuilder, RticCoreImplementor};
+use rtic_core::{AppAnalysis, CompilationPass, ParsedRticApp, RticAppBuilder, RticCoreImplementor};
 extern crate proc_macro;
 
 struct Rp2040Rtic;
@@ -89,26 +89,6 @@ impl RticCoreImplementor for Rp2040Rtic {
     }
 
     fn impl_lock_mutex(&self) -> proc_macro2::TokenStream {
-        // TODO: this interface can be improved by providing a struct like this:
-        /*
-        LockParams {
-            resource_handle : TokenStream, // &mut resource
-            current_task_priority : TokenStream, // u16 value of current task priority
-            ceiling_value: TokenStream, // u16 value of resource priority
-            lock_closure_handle: TokenStream, // the f(resource: &ResourceType)
-        }
-
-        // Then implementation can look like this
-        quote! {
-            unsafe {rtic::export::lock(#resource_handle,
-                                       #current_task_priority,
-                                       #ceiling_value,
-                                       &__rtic_internal_MASKS, // comes from  `compute_priority_masks(...)` implementation
-                                       #lock_closure_handle
-                                       );}
-        }
-
-        */
         quote! {
             unsafe {rtic::export::lock(resource, task_priority, CEILING, &__rtic_internal_MASKS, f);}
         }
@@ -117,5 +97,11 @@ impl RticCoreImplementor for Rp2040Rtic {
 
 #[proc_macro_attribute]
 pub fn app(args: TokenStream, input: TokenStream) -> TokenStream {
-    RticAppBuilder::new(Rp2040Rtic).parse(args, input)
+
+    // use the standard software pass provided by rtic-sw-pass crate
+    let sw_pass = Box::new(rtic_sw_pass::ScSoftwarePass);
+
+    let mut builder = RticAppBuilder::new(Rp2040Rtic);
+    builder.add_compilation_pass(CompilationPass::SwPass(sw_pass));
+    builder.parse(args, input)
 }

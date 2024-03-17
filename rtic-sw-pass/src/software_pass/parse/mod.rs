@@ -1,6 +1,5 @@
 use crate::parse::ast::{AppParameters, SoftwareTask, SoftwareTaskParams};
 use proc_macro2::Ident;
-use quote::format_ident;
 use rtic_core::parse_utils::RticAttr;
 use std::collections::HashMap;
 use syn::spanned::Spanned;
@@ -18,7 +17,7 @@ pub struct ParsedApp {
 
 impl ParsedApp {
     pub fn parse(params: &RticAttr, app_mod: ItemMod) -> syn::Result<Self> {
-        let app_params = ast::AppParameters::from_attr(&params)?;
+        let app_params = AppParameters::from_attr(&params)?;
         let app_mod_items = app_mod.content.unwrap_or_default().1;
         let mut sw_task_structs = Vec::new();
         let mut sw_task_impls = HashMap::new();
@@ -50,7 +49,7 @@ impl ParsedApp {
                 .remove(&task_struct.ident)
                 .ok_or(syn::Error::new(
                     task_struct.span(),
-                    format_ident!(
+                    format!(
                         "The software task {} doesn't implement {SWT_TRAIT_TY}",
                         task_struct.ident
                     ),
