@@ -1,11 +1,11 @@
-pub(crate) mod parse;
 mod analyze;
 mod codegen;
+pub(crate) mod parse;
 
 use crate::parse::ParsedApp;
+use analyze::AppAnalysis;
 use proc_macro2::TokenStream;
 use rtic_core::parse_utils::RticAttr;
-use analyze::AppAnalysis;
 
 pub struct ScSoftwarePass {}
 
@@ -17,5 +17,4 @@ impl ScSoftwarePass {
         // [ ] we still need some traits for hw specific impl for pend() and cross_pend() !
         Ok(code)
     }
-
 }

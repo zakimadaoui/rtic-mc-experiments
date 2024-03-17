@@ -1,5 +1,5 @@
 use crate::parse::ast::{AppParameters, SoftwareTask, SoftwareTaskParams};
-use proc_macro2::{Ident, TokenStream};
+use proc_macro2::Ident;
 use quote::format_ident;
 use rtic_core::parse_utils::RticAttr;
 use std::collections::HashMap;
@@ -7,6 +7,7 @@ use syn::spanned::Spanned;
 use syn::{Item, ItemImpl, ItemMod, ItemStruct, Type};
 
 pub mod ast;
+
 pub const SWT_TRAIT_TY: &str = "RticSwTask";
 
 pub struct ParsedApp {
@@ -54,7 +55,7 @@ impl ParsedApp {
                         task_struct.ident
                     ),
                 ))?;
-            sw_tasks.push(SoftwareTask{
+            sw_tasks.push(SoftwareTask {
                 attr,
                 task_struct,
                 task_impl,
@@ -77,9 +78,7 @@ impl ParsedApp {
                     // sw tasks have a name ("task") and do not have "binds" argument
                     return None;
                 }
-                return SoftwareTaskParams::from_attr(&rtic_attr).map(|params| {
-                    (params, rtic_attr)
-                })
+                return SoftwareTaskParams::from_attr(&rtic_attr).map(|params| (params, rtic_attr));
             }
         }
         None

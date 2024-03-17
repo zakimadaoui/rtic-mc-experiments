@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
-use proc_macro2::Span;
 use crate::parse::ParsedApp;
+use proc_macro2::Span;
 
 #[derive(Debug)]
 pub struct AppAnalysis {
@@ -11,7 +11,6 @@ pub struct AppAnalysis {
 
 impl AppAnalysis {
     pub fn run(app: &ParsedApp) -> syn::Result<Self> {
-
         // group sw tasks based on their associated priorities
         let mut sw_tasks_pgroups: BTreeMap<u16, Vec<syn::Ident>> = BTreeMap::new();
         for task in app.sw_tasks.iter() {
@@ -47,4 +46,3 @@ impl AppAnalysis {
         })
     }
 }
-

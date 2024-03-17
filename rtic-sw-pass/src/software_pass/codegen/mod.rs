@@ -6,22 +6,21 @@
 // [ ] export or generate software task trait, put in exports ?
 // [ ] other TODOs in this doc
 // [ ] regarding "rtic::export::.." either original crate name is needed or crate_name as rtic needs to be added.
-    // something like a trait function called exports_path() inserted into user inputs OR. and in code use rtic_exports::<whatever>::...
-    // feels like another convention
+// something like a trait function called exports_path() inserted into user inputs OR. and in code use rtic_exports::<whatever>::...
+// feels like another convention
 // [ ] also need a convention between passes for how task static instances will be named
 // for visualization purposes, between each pass save the generated tokenstream to a file.
 
 mod utils;
 
-use proc_macro2::TokenStream;
-use quote::{format_ident, quote};
 use crate::software_pass::analyze::AppAnalysis;
 use crate::software_pass::parse::ast::SoftwareTask;
 use crate::software_pass::parse::{ParsedApp, SWT_TRAIT_TY};
+use proc_macro2::TokenStream;
+use quote::{format_ident, quote};
 
 pub fn generate(app: &ParsedApp, analysis: &AppAnalysis) -> TokenStream {
-
-    let sw_tasks =  app.sw_tasks.iter().map(|task|{
+    let sw_tasks = app.sw_tasks.iter().map(|task| {
         let task_struct = &task.task_struct;
         let task_user_impl = &task.task_impl;
         let spawn_impl = task.generate_spawn_api(analysis);
@@ -31,7 +30,6 @@ pub fn generate(app: &ParsedApp, analysis: &AppAnalysis) -> TokenStream {
             #task_user_impl
             #spawn_impl
         }
-
     });
 
     let dispatcher_tasks = generate_dispatcher_tasks(analysis);
@@ -51,13 +49,12 @@ pub fn generate(app: &ParsedApp, analysis: &AppAnalysis) -> TokenStream {
         }
     };
 
-
     quote! {
         #(#user_code)*
         /// ============================= Software-pass content ====================================
         #(#sw_tasks)*
-        #(#dispatcher_tasks)*
-        #(#sw_task_trait_def)*
+        #dispatcher_tasks
+        #sw_task_trait_def
     }
 }
 

@@ -36,6 +36,7 @@ impl SoftwareTask {
         &self.task_struct.ident
     }
 
+    #[allow(unused)]
     pub fn name_uppercase(&self) -> Ident {
         let name = self
             .task_struct
@@ -46,12 +47,11 @@ impl SoftwareTask {
         format_ident!("{name}")
     }
 
+    #[allow(unused)]
     pub fn name_snakecase(&self) -> Ident {
         let name = self.task_struct.ident.to_string().to_snake_case();
         format_ident!("{name}")
     }
-
-
 }
 
 pub struct SoftwareTaskParams {
@@ -60,13 +60,14 @@ pub struct SoftwareTaskParams {
 
 impl SoftwareTaskParams {
     pub fn from_attr(attr: &RticAttr) -> Option<Self> {
-        if attr.name.as_ref()? != "task" {return None};
-        if let &Expr::Lit(syn::ExprLit { ref lit, .. }) = attr.elements.get("priority")?
-        {
+        if attr.name.as_ref()? != "task" {
+            return None;
+        };
+        if let &Expr::Lit(syn::ExprLit { ref lit, .. }) = attr.elements.get("priority")? {
             if let Lit::Int(int) = lit {
                 return Some(Self {
-                    priority: int.base10_parse().ok()?
-                })
+                    priority: int.base10_parse().ok()?,
+                });
             }
         }
         None
