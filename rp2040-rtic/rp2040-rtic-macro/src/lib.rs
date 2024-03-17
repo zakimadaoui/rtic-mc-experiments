@@ -128,5 +128,5 @@ impl RticCoreImplementor for Rp2040Rtic {
 
 #[proc_macro_attribute]
 pub fn app(args: TokenStream, input: TokenStream) -> TokenStream {
-    RticAppBuilder::new(Box::new(Rp2040Rtic)).parse(args, input)
+    RticAppBuilder::new(Rp2040Rtic).parse(args, input)
 }

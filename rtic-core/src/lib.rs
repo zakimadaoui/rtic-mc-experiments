@@ -31,14 +31,17 @@ pub struct RticAppBuilder {
     monotonics: Option<Box<dyn RticMonotonicsImplementor>>,
 }
 impl RticAppBuilder {
-    pub fn new(core_impl: Box<dyn RticCoreImplementor>) -> Self {
+    pub fn new<T: RticCoreImplementor + 'static>(core_impl: T) -> Self {
         Self {
-            core: core_impl,
+            core: Box::new(core_impl),
             monotonics: None,
         }
     }
-    pub fn set_monotonics_impl(&mut self, implementation: Box<dyn RticMonotonicsImplementor>) {
-        self.monotonics = Some(implementation);
+    pub fn set_monotonics_impl<T: RticMonotonicsImplementor + 'static>(
+        &mut self,
+        implementation: T,
+    ) {
+        self.monotonics = Some(Box::new(implementation));
     }
 
     pub fn parse(self, args: TokenStream, input: TokenStream) -> TokenStream {
