@@ -5,10 +5,11 @@ use std::fs;
 
 use proc_macro2::TokenStream as TokenStream2;
 use project_root::get_project_root;
-use syn::{parse_macro_input, ItemMod};
+use syn::{ItemMod, parse_macro_input};
 
 pub use crate::analysis::AppAnalysis;
 use crate::codegen::CodeGen;
+use crate::parse_utils::RticAttr;
 pub use crate::parser::ast::AppArgs;
 pub use crate::parser::ParsedRticApp;
 
@@ -30,20 +31,23 @@ mod parser;
 
 pub struct RticAppBuilder {
     core: Box<dyn RticCoreImplementor>,
-    monotonics: Option<Box<dyn RticMonotonicsImplementor>>,
+    sw_pass: Option<Box<dyn RticPass>>,
+    monotonics_pass: Option<Box<dyn RticPass>>,
 }
 impl RticAppBuilder {
     pub fn new<T: RticCoreImplementor + 'static>(core_impl: T) -> Self {
         Self {
             core: Box::new(core_impl),
-            monotonics: None,
+            monotonics_pass: None,
+            sw_pass: None,
         }
     }
-    pub fn set_monotonics_impl<T: RticMonotonicsImplementor + 'static>(
-        &mut self,
-        implementation: T,
-    ) {
-        self.monotonics = Some(Box::new(implementation));
+
+    pub fn add_compilation_pass(&mut self, pass: CompilationPass) {
+        match pass {
+            CompilationPass::SwPass(sw) => self.sw_pass = Some(sw),
+            CompilationPass::MonotonicsPass(mono) => self.monotonics_pass = Some(mono),
+        }
     }
 
     pub fn parse(self, args: TokenStream, input: TokenStream) -> TokenStream {
@@ -107,7 +111,7 @@ pub trait RticCoreImplementor {
     ///         const CEILING: u16 = #ceiling;
     ///         let task_priority = self.priority;
     ///         let resource = unsafe {&mut #global_resources_handle.assume_init_mut().#element_name} as *mut _;
-    ///         
+    ///
     ///         /* Your TokenStream will be inseted here */
     ///         /* Also remember that you can have access to a global pre-computed priority mask(s) implemented by [compute_priority_masks()] */
     ///     }
@@ -142,5 +146,11 @@ pub trait RticCoreImplementor {
     fn get_min_task_prio(&self) -> u16;
     fn get_max_task_prio(&self) -> u16;
 }
+pub trait RticPass {
+    fn run_pass(&self, params: RticAttr, app_mod: TokenStream2) -> syn::Result<TokenStream2>;
+}
 
-pub trait RticMonotonicsImplementor {}
+pub enum CompilationPass {
+    SwPass(Box<dyn RticPass>),
+    MonotonicsPass(Box<dyn RticPass>),
+}
