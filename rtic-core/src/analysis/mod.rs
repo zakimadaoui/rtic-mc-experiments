@@ -1,20 +1,21 @@
 use syn::spanned::Spanned;
 
-use crate::parser::ast::{HardwareTask, SharedResources};
 use crate::ParsedRticApp;
+use crate::parser::ast::{HardwareTask, SharedResources};
 
 #[derive(Debug)]
 pub struct AppAnalysis {
-    pub used_irqs: Vec<syn::Ident>,
+    // used interrupts and their priorities
+    pub used_irqs: Vec<(syn::Ident, u16)>,
 }
 
 impl AppAnalysis {
     pub fn run(app: &ParsedRticApp) -> syn::Result<Self> {
         // hw interrupts bound to hadrware tasks
-        let used_interrupts: Vec<_> = app
+        let used_interrupts = app
             .hardware_tasks
             .iter()
-            .filter_map(|t| t.args.interrupt_handler_name.clone())
+            .filter_map(|t| Some((t.args.interrupt_handler_name.clone()?, t.args.priority)))
             .collect();
 
         Ok(Self {

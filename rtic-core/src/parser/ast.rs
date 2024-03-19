@@ -1,7 +1,7 @@
 use heck::ToSnakeCase;
 use proc_macro2::Span;
 use quote::ToTokens;
-use syn::{Ident, ItemFn, ItemImpl, ItemStruct, parse::Parser, spanned::Spanned};
+use syn::{parse::Parser, spanned::Spanned, Ident, ItemFn, ItemImpl, ItemStruct};
 
 #[derive(Debug)]
 pub struct InitTask {

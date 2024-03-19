@@ -7,6 +7,9 @@ use proc_macro2::TokenStream as TokenStream2;
 use project_root::get_project_root;
 use syn::{ItemMod, parse_macro_input};
 
+pub use common::rtic_functions;
+pub use common::rtic_traits;
+
 pub use crate::analysis::AppAnalysis;
 use crate::codegen::CodeGen;
 use crate::parse_utils::RticAttr;
@@ -17,42 +20,43 @@ mod analysis;
 mod codegen;
 mod common;
 pub mod parse_utils;
+
 mod parser;
 
 /** todo:
-* [ ] add pre_init code generation to enable interrupts and configure thier priorities
 * [ ] init context with device and core peripherals
-* [ ] run() closure in irq handlers + trait func for this
-
-* add some analysis to check if:
-[ ] idle task actaully implements RticIdleTask (probably same for Sw and Hw)
-[ ] idle task must not have a priority attr and must not have binds
 **/
 
 pub struct RticAppBuilder {
     core: Box<dyn RticCoreImplementor>,
+    multicore_pass: Option<Box<dyn RticPass>>,
     sw_pass: Option<Box<dyn RticPass>>,
     monotonics_pass: Option<Box<dyn RticPass>>,
+    other_passes: Vec<Box<dyn RticPass>>,
 }
 impl RticAppBuilder {
     pub fn new<T: RticCoreImplementor + 'static>(core_impl: T) -> Self {
         Self {
             core: Box::new(core_impl),
+            multicore_pass: None,
             monotonics_pass: None,
             sw_pass: None,
+            other_passes: Vec::new(),
         }
     }
 
     pub fn add_compilation_pass(&mut self, pass: CompilationPass) {
         match pass {
+            CompilationPass::MultiCorePass(mono) => self.multicore_pass = Some(mono),
             CompilationPass::SwPass(sw) => self.sw_pass = Some(sw),
             CompilationPass::MonotonicsPass(mono) => self.monotonics_pass = Some(mono),
+            CompilationPass::Other(pass) => self.other_passes.push(pass),
         }
     }
 
     pub fn parse(self, args: TokenStream, input: TokenStream) -> TokenStream {
         let app_module = if let Some(ref sw_pass) = self.sw_pass {
-            let app_attrs = RticAttr::parse_from_tokens(&args.clone().into()).unwrap();
+            let app_attrs = RticAttr::parse_from_tokens(&args.clone().into()).unwrap(); // TODO: cleanup and remove unwraps
             let code = sw_pass.run_pass(app_attrs, input.into()).unwrap();
 
             if let Ok(out) = get_project_root() {
@@ -92,26 +96,21 @@ impl RticAppBuilder {
     }
 }
 
+/// The interface to provide hw specific details can be improved
+/// But this serves just as a proof of concept that such details
+/// can be provided externally.
 pub trait RticCoreImplementor {
-    /// Code to be inserted before call to Global init() and task init() functions
-    /// This can for example enable all interrupts used by the user
-    fn pre_init(
+    /// Code to be inserted after the call to Global init() and task init() functions
+    /// This can for example enable interrupts used by the user and set their priorities
+    fn post_init(
         &self,
         app_info: &ParsedRticApp,
         app_analysis: &AppAnalysis,
     ) -> Option<TokenStream2>;
 
-    /// Code to be used to enter a critical section.
-    /// This must disable interrupts fully.
-    /// It should use a compiler barier/fence to make sure that code in between [critical_section_begin()] and [critical_section_end()] is not re-ordered.
-    /// It also should use a barrier instruction to not allow Out of Order execution inside critical section.
-    fn critical_section_begin(&self) -> TokenStream2;
-
-    /// Code to be used for existing a critical section.
-    /// This must re-enable interrupts.
-    /// It should use a compiler barier/fence to make sure that code in between [critical_section_begin()] and [critical_section_end()] is not re-ordered.
-    /// It also should use a barrier instruction to not allow Out of Order execution inside critical section.
-    fn critical_section_end(&self) -> TokenStream2;
+    /// Fill the body of the rtic internal critical section function with hardware specific implementation.
+    /// Use [eprintln()] to see the `empty_body_fn` function signature
+    fn fill_interrupt_free_fn(&self, empty_body_fn: syn::ItemFn) -> syn::ItemFn;
 
     /// Based on the information provided by the parsed application, such as Shared Resources priorities
     /// and Tasks priorities. Return the generated code for statically stored priority masks
@@ -157,17 +156,14 @@ pub trait RticCoreImplementor {
 
     /// Implementation for WFI (Wait for interrupt) instruction to be used in default idle task
     fn wfi(&self) -> Option<TokenStream2>;
-
-    /// Priority constraints
-    fn get_default_task_prio(&self) -> u16;
-    fn get_min_task_prio(&self) -> u16;
-    fn get_max_task_prio(&self) -> u16;
 }
 pub trait RticPass {
     fn run_pass(&self, params: RticAttr, app_mod: TokenStream2) -> syn::Result<TokenStream2>;
 }
 
 pub enum CompilationPass {
+    MultiCorePass(Box<dyn RticPass>),
     SwPass(Box<dyn RticPass>),
     MonotonicsPass(Box<dyn RticPass>),
+    Other(Box<dyn RticPass>),
 }

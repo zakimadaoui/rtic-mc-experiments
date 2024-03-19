@@ -1,7 +1,8 @@
 // Note: most of the code here is taken from rtic repo
 #![allow(clippy::inline_always)]
 
-pub use heapless::spsc::Queue;
+/// Distribution crate must re-export the `export` module from all the used compilation passes
+pub use rtic_sw_pass::export::*;
 
 pub use cortex_m::{
     asm::nop,

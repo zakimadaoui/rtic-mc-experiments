@@ -3,5 +3,9 @@
 
 #[cfg(feature = "std")]
 pub mod software_pass;
+
+/// To be re-exported by distributor crate
+pub mod export;
+
 #[cfg(feature = "std")]
 pub use software_pass::*;

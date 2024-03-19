@@ -3,22 +3,24 @@ use proc_macro2::Ident;
 use rtic_core::parse_utils::RticAttr;
 use std::collections::HashMap;
 use syn::spanned::Spanned;
-use syn::{Item, ItemImpl, ItemMod, ItemStruct, Type};
+use syn::{Item, ItemImpl, ItemMod, ItemStruct, Type, Visibility};
 
 pub mod ast;
 
 pub const SWT_TRAIT_TY: &str = "RticSwTask";
 
 pub struct ParsedApp {
+    pub mod_visibility: Visibility,
+    pub mod_ident: Ident,
     pub app_params: AppParameters,
     pub sw_tasks: Vec<SoftwareTask>,
     pub rest_of_code: Vec<Item>,
 }
 
 impl ParsedApp {
-    pub fn parse(params: &RticAttr, app_mod: ItemMod) -> syn::Result<Self> {
+    pub fn parse(params: &RticAttr, mut app_mod: ItemMod) -> syn::Result<Self> {
         let app_params = AppParameters::from_attr(&params)?;
-        let app_mod_items = app_mod.content.unwrap_or_default().1;
+        let app_mod_items = app_mod.content.take().unwrap_or_default().1;
         let mut sw_task_structs = Vec::new();
         let mut sw_task_impls = HashMap::new();
         let mut rest_of_code = Vec::with_capacity(app_mod_items.len());
@@ -63,6 +65,8 @@ impl ParsedApp {
         }
 
         Ok(Self {
+            mod_ident: app_mod.ident,
+            mod_visibility: app_mod.vis,
             app_params,
             sw_tasks,
             rest_of_code,

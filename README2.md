@@ -10,13 +10,13 @@ The objective of this experiment is to enhance the scalability of the RTIC (Real
 
 - `RTIC distribution`: is a crate that exposes the RTIC framework that is implemented for a specific hardware architecture or even for a specific microcontroller. For example, we could have a distribution for single core cortex-m devices, another distribution specifically tailored for the RP2040, a distribution for risc-v architecture ... etc. Each distribution will have the hardware specific details described in its own crate. This makes RTIC codebase growth more controllable and provides an alternative approach to the current one in which all the hardware specific details all belong to a single crate and an architecture is chosen by enabling a corresponding rust feature. 
 
-  - RTIC distributions do not re-impelement the RTIC framework from scratch, instead they only provide the hardware specific parts of the implementation to `rtic-core` library which will do all the heavy lifting.
+  - RTIC distributions do not re-impelement the RTIC framework from scratch, instead they only provide the hardware specific parts of the implementation to `rtic-core` library  and other `compilation passes` crates/libraries that will do all the heavy lifting of parsing, analysing and generating code .
 
-  - `rtic-core` is the library that contains the RTIC declarative model. Meaning that it does all the parsing, syntax validation, and code generation. However, the code generation logic inside it is abstract and details related to specific hadware is provided by the `distribution` crate through some interfaces which we will mention later.
+  - `rtic-core` and other `compilation passes` crates the RTIC  declarative model. Meaning that they all the parsing, syntax validation, and code generation. However, the code generation logic inside it is abstract and details related to specific hadware is provided by the `distribution` crate through some interfaces which we will mention later.
   - Note: `rtic-core` naming was chosen for lack of a better name. However, this lib is completely different from the other `rtic-core` crate in the original RTIC project. 
 
-- `Distribution feature:` in short....
-- `plug-ins (external passes):` in short....
+- `Compilation passes:` in short....
+- one reason more why to pass implementation details to passes is that standard passes don't need to be re-written for different hw archs, instead it can be configured to directly support it.
 
 
 

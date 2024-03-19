@@ -1,10 +1,12 @@
 use heck::ToSnakeCase;
+use proc_macro2::Span;
 use quote::{format_ident, ToTokens};
 use rtic_core::parse_utils::RticAttr;
-use syn::{Expr, Ident, ItemImpl, ItemStruct, Lit};
+use syn::{Expr, Ident, ItemImpl, ItemStruct, Lit, Path};
 
 pub struct AppParameters {
     pub dispatchers: Vec<Ident>,
+    pub device: Path,
 }
 
 impl AppParameters {
@@ -20,7 +22,11 @@ impl AppParameters {
                 Vec::new()
             };
 
-        Ok(Self { dispatchers })
+        let Some(Expr::Path(p)) = args.elements.get("device") else {
+            return Err(syn::Error::new(Span::call_site(), "`device` option must be provided"));
+        };
+
+        Ok(Self { dispatchers, device: p.path.clone() })
     }
 }
 
