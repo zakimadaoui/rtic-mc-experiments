@@ -1,11 +1,11 @@
 use quote::format_ident;
-use syn::{parse_quote, ItemFn};
+use syn::{ItemFn, parse_quote};
 
-use crate::RticCoreImplementor;
+use crate::ScHwPassImpl;
 
 pub const INTERRUPT_FREE_FN: &str = "__rtic_interrupt_free";
 
-pub(crate) fn get_interrupt_free_fn(core: &dyn RticCoreImplementor) -> ItemFn {
+pub(crate) fn get_interrupt_free_fn(core: &dyn ScHwPassImpl) -> ItemFn {
     let fn_ident = format_ident!("{INTERRUPT_FREE_FN}");
     let critical_section_fn = parse_quote! {
         #[inline]

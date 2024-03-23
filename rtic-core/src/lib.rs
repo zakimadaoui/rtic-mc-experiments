@@ -28,14 +28,25 @@ mod parser;
 **/
 
 pub struct RticAppBuilder {
-    core: Box<dyn RticCoreImplementor>,
+    core: Box<dyn ScHwPassImpl>,
     multicore_pass: Option<Box<dyn RticPass>>,
     sw_pass: Option<Box<dyn RticPass>>,
     monotonics_pass: Option<Box<dyn RticPass>>,
     other_passes: Vec<Box<dyn RticPass>>,
 }
+pub trait RticPass {
+    fn run_pass(&self, params: RticAttr, app_mod: TokenStream2) -> syn::Result<TokenStream2>;
+}
+
+pub enum CompilationPass {
+    MultiCorePass(Box<dyn RticPass>),
+    SwPass(Box<dyn RticPass>),
+    MonotonicsPass(Box<dyn RticPass>),
+    Other(Box<dyn RticPass>),
+}
+
 impl RticAppBuilder {
-    pub fn new<T: RticCoreImplementor + 'static>(core_impl: T) -> Self {
+    pub fn new<T: ScHwPassImpl + 'static>(core_impl: T) -> Self {
         Self {
             core: Box::new(core_impl),
             multicore_pass: None,
@@ -54,7 +65,7 @@ impl RticAppBuilder {
         }
     }
 
-    pub fn parse(self, args: TokenStream, input: TokenStream) -> TokenStream {
+    pub fn build_rtic_application(self, args: TokenStream, input: TokenStream) -> TokenStream {
         let app_module = if let Some(ref sw_pass) = self.sw_pass {
             let app_attrs = RticAttr::parse_from_tokens(&args.clone().into()).unwrap(); // TODO: cleanup and remove unwraps
             let code = sw_pass.run_pass(app_attrs, input.into()).unwrap();
@@ -96,10 +107,8 @@ impl RticAppBuilder {
     }
 }
 
-/// The interface to provide hw specific details can be improved
-/// But this serves just as a proof of concept that such details
-/// can be provided externally.
-pub trait RticCoreImplementor {
+/// Interface for providing hw/architecture specific details for implementing the hardware and resources pass
+pub trait ScHwPassImpl {
     /// Code to be inserted after the call to Global init() and task init() functions
     /// This can for example enable interrupts used by the user and set their priorities
     fn post_init(
@@ -156,14 +165,4 @@ pub trait RticCoreImplementor {
 
     /// Implementation for WFI (Wait for interrupt) instruction to be used in default idle task
     fn wfi(&self) -> Option<TokenStream2>;
-}
-pub trait RticPass {
-    fn run_pass(&self, params: RticAttr, app_mod: TokenStream2) -> syn::Result<TokenStream2>;
-}
-
-pub enum CompilationPass {
-    MultiCorePass(Box<dyn RticPass>),
-    SwPass(Box<dyn RticPass>),
-    MonotonicsPass(Box<dyn RticPass>),
-    Other(Box<dyn RticPass>),
 }

@@ -1,6 +1,6 @@
 use proc_macro::TokenStream;
 use quote::quote;
-use rtic_core::{AppAnalysis, CompilationPass, ParsedRticApp, RticAppBuilder, RticCoreImplementor};
+use rtic_core::{AppAnalysis, CompilationPass, ParsedRticApp, RticAppBuilder, ScHwPassImpl};
 use syn::{parse_quote, ItemFn};
 
 extern crate proc_macro;
@@ -16,10 +16,10 @@ pub fn app(args: TokenStream, input: TokenStream) -> TokenStream {
 
     let mut builder = RticAppBuilder::new(Rp2040Rtic);
     builder.add_compilation_pass(CompilationPass::SwPass(sw_pass));
-    builder.parse(args, input)
+    builder.build_rtic_application(args, input)
 }
 
-impl RticCoreImplementor for Rp2040Rtic {
+impl ScHwPassImpl for Rp2040Rtic {
     fn post_init(
         &self,
         app_info: &rtic_core::ParsedRticApp,

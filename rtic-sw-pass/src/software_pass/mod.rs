@@ -31,6 +31,7 @@ impl RticPass for ScSoftwarePass {
     }
 }
 
+/// Interface for providing the hardware specific details needed by the single-core software pass
 pub trait ScSoftwarePassImpl {
     /// Fill the body of the rtic internal pend() function with hardware specific implementation.
     /// Use [eprintln()] to see the `empty_body_fn` function signature
