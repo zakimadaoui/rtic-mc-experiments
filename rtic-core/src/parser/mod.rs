@@ -1,24 +1,28 @@
 use std::collections::HashMap;
 
 use proc_macro2::Span;
-use quote::ToTokens;
-use syn::{spanned::Spanned, Ident, Item, ItemFn, ItemImpl, ItemStruct, ItemUse, Type};
+use syn::{Ident, Item, ItemFn, ItemImpl, ItemStruct, ItemUse, spanned::Spanned, Type};
 
 use ast::*;
 
-use crate::analysis;
 use crate::common::rtic_traits::{HWT_TRAIT_TY, IDLE_TRAIT_TY, SWT_TRAIT_TY};
 
 pub mod ast;
 
 #[derive(Debug)]
+pub struct RticSubApp {
+    pub core: u32,
+    pub shared: Option<SharedResources>,
+    pub init: InitTask,
+    pub idle: Option<IdleTask>,
+    pub tasks: Vec<HardwareTask>,
+}
+
+#[derive(Debug)]
 pub struct ParsedRticApp {
     pub app_name: Ident,
     pub args: AppArgs,
-    pub shared: SharedResources,
-    pub init: InitTask,
-    pub idle: Option<IdleTask>,
-    pub hardware_tasks: Vec<HardwareTask>,
+    pub sub_apps: Vec<RticSubApp>,
     pub user_includes: Vec<ItemUse>,
     pub other_code: Vec<Item>,
 }
@@ -27,8 +31,6 @@ impl ParsedRticApp {
     pub fn parse(module: syn::ItemMod, args: proc_macro2::TokenStream) -> syn::Result<Self> {
         let span = module.span();
         let args = AppArgs::parse(args)?;
-        // shared resources are a list because the framework may allow more than one shared resources struct in multicore setups,
-        // but it is not decided yet how this will be handled
         let mut shared_resources = Vec::new();
         let mut inits = Vec::with_capacity(1);
         // idle tasks are a list because the framework may allow more than one idle task in multicore setups,
@@ -75,55 +77,33 @@ impl ParsedRticApp {
             }
         }
 
-        let mut app_name = module.ident;
-        app_name.set_span(Span::call_site());
+        let mut shared = Self::construct_shared_resources(shared_resources)?;
+        let mut inits = Self::construct_inits(inits, span)?;
+        let mut idles = Self::construct_idle_tasks(idles, &task_impls)?;
+        let mut tasks = Self::construct_rtic_tasks(task_structs, &task_impls)?;
 
-        if shared_resources.is_empty() {
-            return Err(syn::Error::new(
-                span,
-                "No struct with #[shared] attribute was found",
-            ));
-        }
-        let shared_resources: Vec<_> = shared_resources
-            .into_iter()
-            .map(|(mut strct, attr_idx)| {
-                // remove the #[shared] attribute
-                let attr_idx = attr_idx.clone();
-                strct.attrs.remove(attr_idx);
-                let parsed_elements = strct
-                    .fields
-                    .iter()
-                    .map(|f| SharedElement {
-                        ident: f
-                            .ident
-                            .clone()
-                            .expect("unnamed struct is not supported for shared resources"),
-                        ty: f.ty.clone(),
-                        priority: 0,
-                    })
-                    .collect();
-                SharedResources {
-                    strct,
-                    resources: parsed_elements,
-                }
+        // partition into sub_applications
+        let mut sub_apps = Vec::with_capacity(args.cores as usize);
+        for core in 0..args.cores {
+            sub_apps.push(RticSubApp {
+                core,
+                shared: shared.remove(&core),
+                init: inits
+                    .remove(&core)
+                    .unwrap_or_else(|| panic!("No init found for core {core}")),
+                idle: idles.remove(&core),
+                tasks: tasks.remove(&core).unwrap_or_default(),
             })
-            .collect();
-        let mut shared = shared_resources[0].clone(); // TODO: for now other shared resource structs are ignored
+        }
 
-        let init = Self::parse_init(inits, span, &shared)?;
-        let idle = Self::construct_idle_task(idles, &task_impls)?;
-        let hardware_tasks = Self::construct_rtic_tasks(task_structs, &task_impls)?;
-
+        // TODO: do this in elaboration step
         // update shared resources priorities based on task priorities and the resources they share
-        analysis::update_resource_priorities(&mut shared, &hardware_tasks)?;
+        // analysis::update_resource_priorities(&mut shared, &hardware_tasks)?;
 
         Ok(Self {
-            app_name,
+            app_name: module.ident,
             args,
-            shared,
-            init,
-            idle,
-            hardware_tasks,
+            sub_apps,
             user_includes,
             other_code,
         })
@@ -172,121 +152,140 @@ impl ParsedRticApp {
         None
     }
 
+    fn construct_shared_resources(
+        shared_resources: Vec<(ItemStruct, usize)>,
+    ) -> syn::Result<HashMap<u32, SharedResources>> {
+        shared_resources
+            .into_iter()
+            .map(|(mut strct, attr_idx)| {
+                // remove the #[shared] attribute
+                let attr = strct.attrs.remove(attr_idx);
+                let args = SharedResourcesArgs::parse(attr.meta)?;
+                let parsed_elements = strct
+                    .fields
+                    .iter()
+                    .map(|f| SharedElement {
+                        ident: f
+                            .ident
+                            .clone()
+                            .expect("unnamed struct is not supported for shared resources"),
+                        ty: f.ty.clone(),
+                        priority: 0,
+                    })
+                    .collect();
+                Ok((
+                    args.core,
+                    SharedResources {
+                        args,
+                        strct,
+                        resources: parsed_elements,
+                    },
+                ))
+            })
+            .collect::<Result<HashMap<_, _>, syn::Error>>()
+    }
+
     /// links the tasks struct definitions with their implementation part and generates a RticTask struct of it.
     /// The returned tasks are already split between hardware and software tasks
     fn construct_rtic_tasks(
         task_structs: Vec<(ItemStruct, usize)>,
         task_impls: &HashMap<String, ItemImpl>,
-    ) -> syn::Result<Vec<RticTask>> {
-        task_structs
-            .into_iter()
-            .map(|(mut task_struct, attr_idx)| {
-                // parse the task attribute args
-                let attr = task_struct.attrs.remove(attr_idx);
-
-                let syn::Meta::List(args) = attr.meta else {
-                    return Err(syn::Error::new(
-                        attr.span(),
-                        "This attribute must at least have a 'binds' argument.",
-                    ));
-                };
-                let args = TaskArgs::parse(args.tokens)?;
-
-                // software or hardware task trait name that must be implemented for such task
-                let task_trait_name = if args.interrupt_handler_name.is_some() {
-                    HWT_TRAIT_TY
-                } else {
-                    SWT_TRAIT_TY
-                };
-
-                // find the task struct impl
-                let struct_impl =
-                    task_impls
-                        .get(&task_struct.ident.to_string())
-                        .ok_or(syn::Error::new(
-                            task_struct.span(),
-                            format!("This task must implement {task_trait_name} trait."),
-                        ))?;
-
-                Ok(RticTask {
-                    args,
-                    task_struct,
-                    struct_impl: struct_impl.clone(),
-                })
-            })
-            .collect()
-    }
-
-    fn construct_idle_task(
-        mut idles: Vec<(ItemStruct, usize)>,
-        task_impls: &HashMap<String, ItemImpl>,
-    ) -> syn::Result<Option<IdleTask>> {
-        if idles.is_empty() {
-            Ok(None)
-        } else {
-            let (mut idle_struct, init_attr_idx) = idles.pop().unwrap(); // TODO: for now any additional idle tasks is ignored
+    ) -> syn::Result<HashMap<u32, Vec<RticTask>>> {
+        let mut out = HashMap::new();
+        for (mut task_struct, attr_idx) in task_structs {
+            // parse the task attribute args
+            let attr = task_struct.attrs.remove(attr_idx);
+            let args = TaskArgs::parse(attr.meta)?;
 
             // find the task struct impl
             let struct_impl =
                 task_impls
-                    .get(&idle_struct.ident.to_string())
+                    .get(&task_struct.ident.to_string())
                     .ok_or(syn::Error::new(
-                        idle_struct.span(),
-                        format!("This task must implement {IDLE_TRAIT_TY} trait."),
+                        task_struct.span(),
+                        "This task does not implement one of rtic task traits.",
                     ))?;
 
-            // remove the #[idle]
-            let attrs = idle_struct.attrs.remove(init_attr_idx);
-            let args = if let syn::Meta::List(args) = attrs.meta {
-                TaskArgs::parse(args.tokens)?
-            } else {
-                TaskArgs::default()
-            };
-
-            Ok(Some(IdleTask {
+            let tasks = out.entry(args.core).or_insert_with(Vec::new);
+            tasks.push(RticTask {
                 args,
-                task_struct: idle_struct,
+                task_struct,
                 struct_impl: struct_impl.clone(),
-            }))
+            });
         }
+        Ok(out)
     }
 
-    fn parse_init(
-        mut inits: Vec<(ItemFn, usize)>,
+    fn construct_idle_tasks(
+        idles: Vec<(ItemStruct, usize)>,
+        task_impls: &HashMap<String, ItemImpl>,
+    ) -> syn::Result<HashMap<u32, IdleTask>> {
+        idles
+            .into_iter()
+            .map(|(mut idle_struct, init_attr_idx)| {
+                // find the task struct impl
+                let struct_impl =
+                    task_impls
+                        .get(&idle_struct.ident.to_string())
+                        .ok_or(syn::Error::new(
+                            idle_struct.span(),
+                            format!("This task must implement {IDLE_TRAIT_TY} trait."),
+                        ))?;
+
+                // remove the #[idle]
+                let attrs = idle_struct.attrs.remove(init_attr_idx);
+                let args = TaskArgs::parse(attrs.meta)?;
+
+                Ok((
+                    args.core,
+                    IdleTask {
+                        args,
+                        task_struct: idle_struct,
+                        struct_impl: struct_impl.clone(),
+                    },
+                ))
+            })
+            .collect::<Result<HashMap<_, _>, syn::Error>>()
+    }
+
+    fn construct_inits(
+        inits: Vec<(ItemFn, usize)>,
         module_span: Span,
-        shared_resources: &SharedResources,
-    ) -> syn::Result<InitTask> {
+    ) -> syn::Result<HashMap<u32, InitTask>> {
         if inits.is_empty() {
             Err(syn::Error::new(
                 module_span,
                 "No function with #[init] attribute was found in this module.",
             ))
-        } else if inits.len() > 1 {
-            Err(syn::Error::new(
-                inits[1].0.span(),
-                "Found more than one function with the #[init] attribute.",
-            ))
         } else {
-            let (mut init_fn, init_attr_idx) = inits.pop().unwrap();
+            inits
+                .into_iter()
+                .map(|(mut init_fn, init_attr_idx)| {
+                    // // check return type
+                    // let expected_ret = format!("-> {}", shared_resources.strct.ident);
+                    // let found_ret = format!("{}", init_fn.sig.output.to_token_stream());
+                    // if found_ret != expected_ret {
+                    //     return Err(syn::Error::new(
+                    //         init_fn.span(),
+                    //         format!(
+                    //             "Expected function return type to be {expected_ret}, found {found_ret}."
+                    //         ),
+                    //     ));
+                    // }
 
-            // check return type
-            let expected_ret = format!("-> {}", shared_resources.strct.ident);
-            let found_ret = format!("{}", init_fn.sig.output.to_token_stream());
-            if found_ret != expected_ret {
-                return Err(syn::Error::new(
-                    init_fn.span(),
-                    format!(
-                        "Expected function return type to be {expected_ret}, found {found_ret}."
-                    ),
-                ));
-            }
-
-            // remove the [#init]
-            init_fn.attrs.remove(init_attr_idx);
-            Ok(InitTask {
-                ident: init_fn.sig.ident.clone(),
-                body: init_fn,
-            })
+                    // remove the [#init]
+                    let attr = init_fn.attrs.remove(init_attr_idx);
+                    let args = InitTaskArgs::parse(attr.meta)?;
+                    Ok((
+                        args.core,
+                        InitTask {
+                            args,
+                            ident: init_fn.sig.ident.clone(),
+                            body: init_fn,
+                        },
+                    ))
+                })
+                .collect::<Result<HashMap<_, _>, syn::Error>>()
         }
     }
 }

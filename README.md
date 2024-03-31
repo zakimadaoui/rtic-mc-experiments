@@ -2,7 +2,7 @@
 
 **Experiment Objective:** 
 
-The objective of this experiment is to enhance the scalability of the RTIC (Real-Time Interrupt-driven Concurrency) framework, particularly to allow for multicore hardware configurations. The goal is to decouple the RTIC declarative model from hardware-specific implementation details. And (possibly) provide a mechanism for additional syntax extension through 3rd party libraries. By achieving this, we aim to create a more maintainable and extensible RTIC framework capable of accommodating various hardware configurations while preserving the original core declarative model.
+The objective of this experiment is to enhance the scalability of the RTIC (Real-Time Interrupt-driven Concurrency) framework, particularly to allow for multi-core hardware configurations. The goal is to decouple the RTIC declarative model from hardware-specific implementation details. And provide a mechanism for additional syntax extension through 3rd party libraries. By achieving this, we aim to create a more maintainable and extensible RTIC framework capable of accommodating various hardware configurations while preserving the original core declarative model.
 
 
 

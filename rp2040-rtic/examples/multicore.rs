@@ -5,7 +5,7 @@
 #[used]
 pub static BOOT2: [u8; 256] = rp2040_boot2::BOOT_LOADER_GENERIC_03H;
 
-#[rtic::app(device=rp2040_hal::pac, peripherals=false, dispatchers=[DMA_IRQ_0])]
+#[rtic::app(device=rp2040_hal::pac, peripherals=false, dispatchers=[DMA_IRQ_0], cores = 2)]
 pub mod my_app {
 
     use cortex_m::asm;
@@ -22,7 +22,7 @@ pub mod my_app {
 
     use embedded_hal::digital::v2::OutputPin;
     // use panic_halt as _;
-    use rp2040_hal::pac::{self};
+    use rp2040_hal::pac::{self, Interrupt};
 
     type LedOutPin = Pin<Gpio25, FunctionSio<SioOutput>, PullDown>;
     static DELAY: u32 = 1000;
@@ -33,9 +33,12 @@ pub mod my_app {
         led: LedOutPin,
     }
 
-    #[init]
+    #[init(core = 0)]
     fn system_init() -> SharedResources {
+
         let mut device = pac::Peripherals::take().unwrap();
+        let cpu_id = device.SIO.cpuid.read().bits();
+        info!("staring core {} ...", cpu_id);
 
         // Initialization of the system clock.
         let mut watchdog = rp2040_hal::watchdog::Watchdog::new(device.WATCHDOG);
@@ -79,6 +82,13 @@ pub mod my_app {
         }
     }
 
+    #[init(core = 1)]
+    fn init2() {
+        let cpu_id = unsafe { pac::Peripherals::steal().SIO.cpuid.read().bits() };
+        info!("staring core {} ...", cpu_id);
+        pac::NVIC::pend(Interrupt::TIMER_IRQ_1);
+    }
+
     #[task(binds = TIMER_IRQ_0 , priority = 3, shared = [alarm, led])]
     struct MyTask {
         /* local resources */
@@ -114,6 +124,19 @@ pub mod my_app {
                 let _ = alarm0.schedule(MicrosDurationU32::millis(DELAY));
                 alarm0.clear_interrupt();
             });
+        }
+    }
+
+    #[task(binds = TIMER_IRQ_1 , priority = 2, core = 1)]
+    struct MyCore1Task;
+    impl RticTask for MyCore1Task {
+        fn init() -> Self {
+            Self
+        }
+
+        fn exec(&mut self) {
+            let cpu_id = unsafe { pac::Peripherals::steal().SIO.cpuid.read().bits() };
+            info!("executing task from core {}", cpu_id);
         }
     }
 
@@ -171,7 +194,7 @@ pub mod my_app {
             loop {
                 self.count += 1;
                 info!("looping in idle... {}", self.count);
-                asm::delay(12000000);
+                asm::delay(120000000);
                 // asm::delay(120000000);
             }
         }

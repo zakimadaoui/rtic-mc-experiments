@@ -1,12 +1,47 @@
 use heck::ToSnakeCase;
 use proc_macro2::Span;
 use quote::ToTokens;
-use syn::{parse::Parser, spanned::Spanned, Ident, ItemFn, ItemImpl, ItemStruct};
+use syn::{
+    Expr, ExprArray, Ident, ItemFn, ItemImpl, ItemStruct, LitInt, Meta, parse::Parser,
+    spanned::Spanned,
+};
 
 #[derive(Debug)]
 pub struct InitTask {
+    pub args: InitTaskArgs,
     pub ident: Ident,
     pub body: ItemFn,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct InitTaskArgs {
+    pub core: u32,
+}
+
+impl InitTaskArgs {
+    pub fn parse(args: Meta) -> syn::Result<Self> {
+        let mut core: Option<syn::LitInt> = None;
+        let Meta::List(args) = args else {
+            return Ok(Self::default());
+        };
+
+        syn::meta::parser(|meta| {
+            if meta.path.is_ident("core") {
+                core = Some(meta.value()?.parse()?)
+            } else {
+                // this is needed to advance the values iterator
+                let _ = meta.value()?.parse::<Expr>();
+            }
+            Ok(())
+        })
+            .parse2(args.tokens)?;
+
+        let core = core
+            .and_then(|core| core.base10_parse().ok())
+            .unwrap_or_default();
+
+        Ok(Self { core })
+    }
 }
 
 #[derive(Debug, Default)]
@@ -15,13 +50,19 @@ pub struct TaskArgs {
     pub priority: u16,
     // list of identifiers for shared resources
     pub shared_idents: Vec<Ident>,
+    pub core: u32,
 }
 
 impl TaskArgs {
-    pub fn parse(args: proc_macro2::TokenStream) -> syn::Result<Self> {
+    pub fn parse(args: Meta) -> syn::Result<Self> {
+        let Meta::List(args) = args else {
+            return Ok(TaskArgs::default());
+        };
+
         let mut interrupt_handler_name: Option<syn::Path> = None;
-        let mut priority: Option<syn::LitInt> = None;
-        let mut shared: Option<syn::ExprArray> = None;
+        let mut priority: Option<LitInt> = None;
+        let mut shared: Option<ExprArray> = None;
+        let mut core: Option<LitInt> = None;
 
         syn::meta::parser(|meta| {
             if meta.path.is_ident("binds") {
@@ -30,16 +71,25 @@ impl TaskArgs {
                 priority = Some(meta.value()?.parse()?);
             } else if meta.path.is_ident("shared") {
                 shared = Some(meta.value()?.parse()?);
+            } else if meta.path.is_ident("core") {
+                core = Some(meta.value()?.parse()?);
+            } else {
+                // this is needed to advance the values iterator
+                let _: syn::Result<Expr> = meta.value()?.parse();
             }
             Ok(())
         })
-        .parse2(args)?;
+        .parse2(args.tokens)?;
 
         let interrupt_handler_name = interrupt_handler_name
             .map(|i| Ident::new(&i.to_token_stream().to_string(), Span::call_site()));
 
         let priority = priority
             .and_then(|p| p.base10_parse().ok())
+            .unwrap_or_default();
+
+        let core = core
+            .and_then(|core| core.base10_parse().ok())
             .unwrap_or_default();
 
         let shared_idents = if let Some(shared) = shared {
@@ -57,6 +107,7 @@ impl TaskArgs {
             interrupt_handler_name,
             priority,
             shared_idents,
+            core,
         })
     }
 }
@@ -103,8 +154,40 @@ pub struct SharedElement {
     pub priority: u16,
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct SharedResourcesArgs {
+    pub core: u32,
+}
+
+impl SharedResourcesArgs {
+    pub fn parse(args: Meta) -> syn::Result<Self> {
+        let mut core: Option<syn::LitInt> = None;
+        let Meta::List(args) = args else {
+            return Ok(Self::default());
+        };
+
+        syn::meta::parser(|meta| {
+            if meta.path.is_ident("core") {
+                core = Some(meta.value()?.parse()?)
+            } else {
+                // this is needed to advance the values iterator
+                let _ = meta.value()?.parse::<Expr>();
+            }
+            Ok(())
+        })
+        .parse2(args.tokens)?;
+
+        let core = core
+            .and_then(|core| core.base10_parse().ok())
+            .unwrap_or_default();
+
+        Ok(Self { core })
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct SharedResources {
+    pub args: SharedResourcesArgs,
     pub strct: ItemStruct,
     pub resources: Vec<SharedElement>,
 }
@@ -132,6 +215,7 @@ pub struct AppArgs {
     // path to peripheral crate
     pub device: syn::Path,
     pub peripherals: bool,
+    pub cores: u32,
 }
 
 impl AppArgs {
@@ -139,13 +223,16 @@ impl AppArgs {
         let args_span = args.span();
         let mut device: Option<syn::Path> = None;
         let mut peripherals: Option<syn::LitBool> = None;
+        let mut cores: Option<syn::LitInt> = None;
         syn::meta::parser(|meta| {
             if meta.path.is_ident("device") {
                 device = Some(meta.value()?.parse()?);
             } else if meta.path.is_ident("peripherals") {
                 peripherals = Some(meta.value()?.parse()?);
+            } else if meta.path.is_ident("cores") {
+                cores = Some(meta.value()?.parse()?)
             } else {
-                // this is somehow needed to advance the iterator
+                // this is needed to advance the values iterator
                 let _: syn::Result<syn::Expr> = meta.value()?.parse();
             }
             Ok(())
@@ -159,9 +246,14 @@ impl AppArgs {
             ));
         };
 
+        let cores = cores
+            .and_then(|cores| cores.base10_parse().ok())
+            .unwrap_or(1_u32);
+
         Ok(Self {
             device,
             peripherals: peripherals.map_or(false, |f| f.value),
+            cores,
         })
     }
 }

@@ -9,14 +9,126 @@ pub mod my_app
     rp2040_hal :: gpio :: bank0 :: Gpio25 ; use rp2040_hal :: gpio ::
     { FunctionSio, Pin, PullDown, SioOutput } ; use rp2040_hal :: timer ::
     { Alarm, Alarm0 } ; use embedded_hal :: digital :: v2 :: OutputPin ; use
-    rp2040_hal :: pac :: { self } ;
+    rp2040_hal :: pac :: { self, Interrupt } ;
     #[doc =
-    r" ==================================== init task ======================================"]
-    fn system_init() -> SharedResources
+    r" ==================================== rtic traits ===================================="]
+    pub use rtic_traits :: * ; #[doc = r" Module defining rtic traits"] mod
+    rtic_traits
     {
-        let mut device = pac :: Peripherals :: take().unwrap() ; let mut
-        watchdog = rp2040_hal :: watchdog :: Watchdog :: new(device.WATCHDOG)
-        ; let clocks = rp2040_hal :: clocks ::
+        #[doc = r" Trait for a hardware task"] pub trait RticTask
+        {
+            #[doc = r" Task local variables initialization routine"] fn init()
+            -> Self ; #[doc = r" Function to be bound to a HW Interrupt"] fn
+            exec(& mut self) ;
+        } #[doc = r" Trait for an idle task"] pub trait RticIdleTask
+        {
+            #[doc = r" Task local variables initialization routine"] fn init()
+            -> Self ;
+            #[doc =
+            r" Function to be executing when no other task is running"] fn
+            exec(& mut self) ->! ;
+        } pub trait RticMutex
+        {
+            type ResourceType ; fn
+            lock(& mut self, f : impl FnOnce(& mut Self :: ResourceType)) ;
+        }
+    }
+    #[doc =
+    r" ================================== rtic functions ==================================="]
+    #[doc = r" critical section function"] #[inline] pub fn
+    __rtic_interrupt_free < F, R > (f : F) -> R where F : FnOnce() -> R,
+    {
+        unsafe { core :: arch :: asm! ("cpsid i") ; } let r = f() ; unsafe
+        { core :: arch :: asm! ("cpsie i") ; } r
+    }
+    #[doc =
+    r" ==================================== User code ======================================"]
+    type LedOutPin = Pin < Gpio25, FunctionSio < SioOutput >, PullDown > ;
+    static DELAY : u32 = 1000 ; static mut __rtic_internal__MyTask2__INPUTS :
+    rtic :: export :: Queue < < MyTask2 as RticSwTask > :: SpawnInput, 2 > =
+    rtic :: export :: Queue :: new() ; impl MyTask2
+    {
+        pub fn spawn(input : < MyTask2 as RticSwTask > :: SpawnInput) ->
+        Result < (), < MyTask2 as RticSwTask > :: SpawnInput >
+        {
+            let mut inputs_producer = unsafe
+            { __rtic_internal__MyTask2__INPUTS.split().0 } ; let mut
+            ready_producer = unsafe
+            { __rtic_internal__Prio2Tasks__RQ.split().0 } ;
+            #[doc =
+            r" need to protect by a critical section due to many producers of different priorities can spawn/enqueue this task"]
+            __rtic_interrupt_free(| | -> Result < (), < MyTask2 as RticSwTask
+            > :: SpawnInput >
+            {
+                inputs_producer.enqueue(input) ? ; unsafe
+                { ready_producer.enqueue_unchecked(Prio2Tasks :: MyTask2) } ;
+                __rtic_sc_pend(rp2040_hal :: pac :: Interrupt :: DMA_IRQ_0 as
+                u16) ; Ok(())
+            })
+        }
+    } static mut __rtic_internal__MyTask7__INPUTS : rtic :: export :: Queue <
+    < MyTask7 as RticSwTask > :: SpawnInput, 2 > = rtic :: export :: Queue ::
+    new() ; impl MyTask7
+    {
+        pub fn spawn(input : < MyTask7 as RticSwTask > :: SpawnInput) ->
+        Result < (), < MyTask7 as RticSwTask > :: SpawnInput >
+        {
+            let mut inputs_producer = unsafe
+            { __rtic_internal__MyTask7__INPUTS.split().0 } ; let mut
+            ready_producer = unsafe
+            { __rtic_internal__Prio2Tasks__RQ.split().0 } ;
+            #[doc =
+            r" need to protect by a critical section due to many producers of different priorities can spawn/enqueue this task"]
+            __rtic_interrupt_free(| | -> Result < (), < MyTask7 as RticSwTask
+            > :: SpawnInput >
+            {
+                inputs_producer.enqueue(input) ? ; unsafe
+                { ready_producer.enqueue_unchecked(Prio2Tasks :: MyTask7) } ;
+                __rtic_sc_pend(rp2040_hal :: pac :: Interrupt :: DMA_IRQ_0 as
+                u16) ; Ok(())
+            })
+        }
+    } #[derive(Clone, Copy)] #[doc(hidden)] pub enum Prio2Tasks
+    { MyTask2, MyTask7, } #[doc(hidden)] #[allow(non_upper_case_globals)]
+    static mut __rtic_internal__Prio2Tasks__RQ : rtic :: export :: Queue <
+    Prio2Tasks, 3usize > = rtic :: export :: Queue :: new() ;
+    #[doc = r" Trait for an idle task"] pub trait RticSwTask
+    {
+        type SpawnInput ;
+        #[doc = r" Task local variables initialization routine"] fn init() ->
+        Self ;
+        #[doc =
+        r" Function to be executing when the scheduled software task is dispatched"]
+        fn exec(& mut self, input : Self :: SpawnInput) ;
+    } #[doc(hidden)] #[inline] pub fn __rtic_sc_pend(irq_nbr : u16)
+    {
+        unsafe
+        {
+            (* rtic :: export :: NVIC :: PTR).ispr
+            [usize :: from(irq_nbr / 32)].write(1 << (irq_nbr % 32))
+        }
+    } #[doc = " ==================================== "] #[doc = "CORE 0"]
+    #[doc = " ==================================== "]
+    #[doc = r" Computed priority Masks"] #[doc(hidden)]
+    #[allow(non_upper_case_globals)] const __rtic_internal_MASK_CHUNKS_core0 :
+    usize = rtic :: export ::
+    compute_mask_chunks([rp2040_hal :: pac :: Interrupt :: TIMER_IRQ_0 as u32,
+    rp2040_hal :: pac :: Interrupt :: TIMER_IRQ_2 as u32, rp2040_hal :: pac ::
+    Interrupt :: DMA_IRQ_0 as u32,]) ; #[doc(hidden)]
+    #[allow(non_upper_case_globals)] const __rtic_internal_MASKS_core0 :
+    [rtic :: export :: Mask < __rtic_internal_MASK_CHUNKS_core0 > ; 3] =
+    [rtic :: export ::
+    create_mask([rp2040_hal :: pac :: Interrupt :: TIMER_IRQ_2 as u32,]), rtic
+    :: export ::
+    create_mask([rp2040_hal :: pac :: Interrupt :: DMA_IRQ_0 as u32,]), rtic
+    :: export ::
+    create_mask([rp2040_hal :: pac :: Interrupt :: TIMER_IRQ_0 as u32,]),] ;
+    #[doc = r" init task"] fn system_init() -> SharedResources
+    {
+        let mut device = pac :: Peripherals :: take().unwrap() ; let cpu_id =
+        device.SIO.cpuid.read().bits() ; info! ("staring core {} ...", cpu_id)
+        ; let mut watchdog = rp2040_hal :: watchdog :: Watchdog ::
+        new(device.WATCHDOG) ; let clocks = rp2040_hal :: clocks ::
         init_clocks_and_plls(12_000_000u32, device.XOSC, device.CLOCKS,
         device.PLL_SYS, device.PLL_USB, & mut device.RESETS, & mut
         watchdog,).ok().unwrap() ; let sio = rp2040_hal :: Sio ::
@@ -29,30 +141,25 @@ pub mod my_app
         alarm0.schedule(MicrosDurationU32 :: millis(DELAY)).unwrap() ;
         alarm0.enable_interrupt() ; SharedResources
         { alarm : alarm0, led : led_pin, }
-    }
-    #[doc =
-    r" ==================================== idle task ======================================"]
-    static mut MY_IDLE_TASK : core :: mem :: MaybeUninit < MyIdleTask > = core
-    :: mem :: MaybeUninit :: uninit() ; struct MyIdleTask { count : u32, }
-    impl RticIdleTask for MyIdleTask
+    } #[doc = r" idle task"] static mut MY_IDLE_TASK : core :: mem ::
+    MaybeUninit < MyIdleTask > = core :: mem :: MaybeUninit :: uninit() ;
+    struct MyIdleTask { count : u32, } impl RticIdleTask for MyIdleTask
     {
         fn init() -> Self { Self { count : 0 } } fn exec(& mut self) ->!
         {
             loop
             {
                 self.count += 1 ; info! ("looping in idle... {}", self.count)
-                ; asm :: delay(1200000) ;
+                ; asm :: delay(120000000) ;
             }
         }
     } impl MyIdleTask { pub const fn priority() -> u16 { 0u16 } }
-    #[doc =
-    r" ======================== define static mut shared resources ========================="]
-    static mut SHARED_RESOURCES : core :: mem :: MaybeUninit < SharedResources
-    > = core :: mem :: MaybeUninit :: uninit() ; struct SharedResources
+    #[doc = r" define static mut shared resources"] static mut
+    SHARED_RESOURCES : core :: mem :: MaybeUninit < SharedResources > = core
+    :: mem :: MaybeUninit :: uninit() ; struct SharedResources
     { alarm : Alarm0, led : LedOutPin, }
-    #[doc =
-    r"====================== proxies for accessing the shared resources ===================="]
-    struct __alarm_mutex { #[doc(hidden)] priority : u16, } impl __alarm_mutex
+    #[doc = r" proxies for accessing the shared resources"] struct
+    __alarm_mutex { #[doc(hidden)] priority : u16, } impl __alarm_mutex
     {
         #[inline(always)] pub fn new(priority : u16) -> Self
         { Self { priority } }
@@ -68,7 +175,7 @@ pub mod my_app
             {
                 rtic :: export ::
                 lock(resource, task_priority, CEILING, &
-                __rtic_internal_MASKS, f) ;
+                __rtic_internal_MASKS_core0, f) ;
             }
         }
     } struct __led_mutex { #[doc(hidden)] priority : u16, } impl __led_mutex
@@ -87,15 +194,12 @@ pub mod my_app
             {
                 rtic :: export ::
                 lock(resource, task_priority, CEILING, &
-                __rtic_internal_MASKS, f) ;
+                __rtic_internal_MASKS_core0, f) ;
             }
         }
-    }
-    #[doc =
-    r"======================== define and bind hw tasks to interrupts ======================"]
-    static mut MY_TASK : core :: mem :: MaybeUninit < MyTask > = core :: mem
-    :: MaybeUninit :: uninit() ; struct MyTask
-    { is_high : bool, counter : u16, } impl RticTask for MyTask
+    } #[doc = r" define tasks"] static mut MY_TASK : core :: mem ::
+    MaybeUninit < MyTask > = core :: mem :: MaybeUninit :: uninit() ; struct
+    MyTask { is_high : bool, counter : u16, } impl RticTask for MyTask
     {
         fn init() -> Self { Self { is_high : false, counter : 0 } } fn
         exec(& mut self)
@@ -226,46 +330,14 @@ pub mod my_app
             }
         }
     } impl Priority2Dispatcher { pub const fn priority() -> u16 { 2u16 } }
-    #[allow(non_snake_case)] #[no_mangle] fn TIMER_IRQ_0()
+    #[doc = r" bind hw tasks to interrupts"] #[allow(non_snake_case)]
+    #[no_mangle] fn TIMER_IRQ_0()
     { unsafe { MY_TASK.assume_init_mut().exec() ; } } #[allow(non_snake_case)]
     #[no_mangle] fn TIMER_IRQ_2()
     { unsafe { MY_TASK3.assume_init_mut().exec() ; } }
     #[allow(non_snake_case)] #[no_mangle] fn DMA_IRQ_0()
     { unsafe { PRIORITY2_DISPATCHER.assume_init_mut().exec() ; } }
-    #[doc =
-    r" ==================================== rtic traits ===================================="]
-    pub use rtic_traits :: * ; #[doc = r" Module defining rtic traits"] mod
-    rtic_traits
-    {
-        #[doc = r" Trait for a hardware task"] pub trait RticTask
-        {
-            #[doc = r" Task local variables initialization routine"] fn init()
-            -> Self ; #[doc = r" Function to be bound to a HW Interrupt"] fn
-            exec(& mut self) ;
-        } #[doc = r" Trait for an idle task"] pub trait RticIdleTask
-        {
-            #[doc = r" Task local variables initialization routine"] fn init()
-            -> Self ;
-            #[doc =
-            r" Function to be executing when no other task is running"] fn
-            exec(& mut self) ->! ;
-        } pub trait RticMutex
-        {
-            type ResourceType ; fn
-            lock(& mut self, f : impl FnOnce(& mut Self :: ResourceType)) ;
-        }
-    }
-    #[doc =
-    r" ================================== rtic functions ==================================="]
-    #[doc = r" critical section function"] #[inline] pub fn
-    __rtic_interrupt_free < F, R > (f : F) -> R where F : FnOnce() -> R,
-    {
-        unsafe { core :: arch :: asm! ("cpsid i") ; } let r = f() ; unsafe
-        { core :: arch :: asm! ("cpsie i") ; } r
-    }
-    #[doc =
-    r" ======================================= main ========================================"]
-    #[no_mangle] pub fn main() ->!
+    #[doc = "Entry of "] #[doc = "CORE 0"] #[no_mangle] pub fn main() ->!
     {
         __rtic_interrupt_free(||
         {
@@ -276,7 +348,31 @@ pub mod my_app
                 MY_TASK2.write(MyTask2 :: init()) ;
                 MY_TASK7.write(MyTask7 :: init()) ;
                 PRIORITY2_DISPATCHER.write(Priority2Dispatcher :: init()) ;
-            } unsafe
+            } let shared_resources = system_init() ; unsafe
+            { SHARED_RESOURCES.write(shared_resources) ; }
+            #[doc = r" Stack for core 1"] #[doc = r""]
+            #[doc =
+            r" Core 0 gets its stack via the normal route - any memory not used by static values is"]
+            #[doc = r" reserved for stack and initialised by cortex-m-rt."]
+            #[doc =
+            r" To get the same for Core 1, we would need to compile everything seperately and"]
+            #[doc =
+            r" modify the linker file for both programs, and that's quite annoying."]
+            #[doc =
+            r" So instead, core1.spawn takes a [usize] which gets used for the stack."]
+            #[doc =
+            r" NOTE: We use the `Stack` struct here to ensure that it has 32-byte alignment, which allows"]
+            #[doc =
+            r" the stack guard to take up the least amount of usable RAM."]
+            static mut CORE1_STACK : rtic :: export :: Stack < 4096 > = rtic
+            :: export :: Stack :: new() ; let mut pac = unsafe
+            { rp2040_hal :: pac :: Peripherals :: steal() } ; let mut sio =
+            rtic :: export :: Sio :: new(pac.SIO) ; let mut mc = rtic ::
+            export :: Multicore ::
+            new(& mut pac.PSM, & mut pac.PPB, & mut sio.fifo) ; let cores =
+            mc.cores() ; let core1 = & mut cores [1] ; let _ =
+            core1.spawn(unsafe { & mut CORE1_STACK.mem }, move ||
+            core1_entry()) ; unsafe
             {
                 rp2040_hal :: pac :: CorePeripherals ::
                 steal().NVIC.set_priority(rp2040_hal :: pac :: Interrupt ::
@@ -294,86 +390,55 @@ pub mod my_app
                 steal().NVIC.set_priority(rp2040_hal :: pac :: Interrupt ::
                 DMA_IRQ_0, 2u16 as u8) ; rp2040_hal :: pac :: NVIC ::
                 unmask(rp2040_hal :: pac :: Interrupt :: DMA_IRQ_0) ;
-            } unsafe { SHARED_RESOURCES.write(system_init()) ; }
+            }
         }) ; let mut my_idle_task = MyIdleTask :: init() ; my_idle_task.exec()
         ;
-    } #[doc = r" user code"] type LedOutPin = Pin < Gpio25, FunctionSio <
-    SioOutput >, PullDown > ; static DELAY : u32 = 1000 ; static mut
-    __rtic_internal__MyTask2__INPUTS : rtic :: export :: Queue < < MyTask2 as
-    RticSwTask > :: SpawnInput, 2 > = rtic :: export :: Queue :: new() ; impl
-    MyTask2
+    } #[doc = " ==================================== "] #[doc = "CORE 1"]
+    #[doc = " ==================================== "]
+    #[doc = r" Computed priority Masks"] #[doc(hidden)]
+    #[allow(non_upper_case_globals)] const __rtic_internal_MASK_CHUNKS_core1 :
+    usize = rtic :: export ::
+    compute_mask_chunks([rp2040_hal :: pac :: Interrupt :: TIMER_IRQ_1 as
+    u32,]) ; #[doc(hidden)] #[allow(non_upper_case_globals)] const
+    __rtic_internal_MASKS_core1 :
+    [rtic :: export :: Mask < __rtic_internal_MASK_CHUNKS_core1 > ; 3] =
+    [rtic :: export :: create_mask([]), rtic :: export ::
+    create_mask([rp2040_hal :: pac :: Interrupt :: TIMER_IRQ_1 as u32,]), rtic
+    :: export :: create_mask([]),] ; #[doc = r" init task"] fn init2()
     {
-        pub fn spawn(input : < MyTask2 as RticSwTask > :: SpawnInput) ->
-        Result < (), < MyTask2 as RticSwTask > :: SpawnInput >
+        let cpu_id = unsafe
+        { pac :: Peripherals :: steal().SIO.cpuid.read().bits() } ; info!
+        ("staring core {} ...", cpu_id) ; pac :: NVIC ::
+        pend(Interrupt :: TIMER_IRQ_1) ;
+    } #[doc = r" idle task"] #[doc = r" define static mut shared resources"]
+    #[doc = r" proxies for accessing the shared resources"]
+    #[doc = r" define tasks"] static mut MY_CORE1_TASK : core :: mem ::
+    MaybeUninit < MyCore1Task > = core :: mem :: MaybeUninit :: uninit() ;
+    struct MyCore1Task ; impl RticTask for MyCore1Task
+    {
+        fn init() -> Self { Self } fn exec(& mut self)
         {
-            let mut inputs_producer = unsafe
-            { __rtic_internal__MyTask2__INPUTS.split().0 } ; let mut
-            ready_producer = unsafe
-            { __rtic_internal__Prio2Tasks__RQ.split().0 } ;
-            #[doc =
-            r" need to protect by a critical section due to many producers of different priorities can spawn/enqueue this task"]
-            __rtic_interrupt_free(| | -> Result < (), < MyTask2 as RticSwTask
-            > :: SpawnInput >
+            let cpu_id = unsafe
+            { pac :: Peripherals :: steal().SIO.cpuid.read().bits() } ; info!
+            ("executing task from core {}", cpu_id) ;
+        }
+    } impl MyCore1Task { pub const fn priority() -> u16 { 2u16 } }
+    #[doc = r" bind hw tasks to interrupts"] #[allow(non_snake_case)]
+    #[no_mangle] fn TIMER_IRQ_1()
+    { unsafe { MY_CORE1_TASK.assume_init_mut().exec() ; } }
+    #[doc = "Entry of "] #[doc = "CORE 1"] #[no_mangle] pub fn core1_entry()
+    ->!
+    {
+        __rtic_interrupt_free(||
+        {
+            unsafe { MY_CORE1_TASK.write(MyCore1Task :: init()) ; } let
+            shared_resources = init2() ; unsafe
             {
-                inputs_producer.enqueue(input) ? ; unsafe
-                { ready_producer.enqueue_unchecked(Prio2Tasks :: MyTask2) } ;
-                __rtic_sc_pend(rp2040_hal :: pac :: Interrupt :: DMA_IRQ_0 as
-                u16) ; Ok(())
-            })
-        }
-    } static mut __rtic_internal__MyTask7__INPUTS : rtic :: export :: Queue <
-    < MyTask7 as RticSwTask > :: SpawnInput, 2 > = rtic :: export :: Queue ::
-    new() ; impl MyTask7
-    {
-        pub fn spawn(input : < MyTask7 as RticSwTask > :: SpawnInput) ->
-        Result < (), < MyTask7 as RticSwTask > :: SpawnInput >
-        {
-            let mut inputs_producer = unsafe
-            { __rtic_internal__MyTask7__INPUTS.split().0 } ; let mut
-            ready_producer = unsafe
-            { __rtic_internal__Prio2Tasks__RQ.split().0 } ;
-            #[doc =
-            r" need to protect by a critical section due to many producers of different priorities can spawn/enqueue this task"]
-            __rtic_interrupt_free(| | -> Result < (), < MyTask7 as RticSwTask
-            > :: SpawnInput >
-            {
-                inputs_producer.enqueue(input) ? ; unsafe
-                { ready_producer.enqueue_unchecked(Prio2Tasks :: MyTask7) } ;
-                __rtic_sc_pend(rp2040_hal :: pac :: Interrupt :: DMA_IRQ_0 as
-                u16) ; Ok(())
-            })
-        }
-    } #[derive(Clone, Copy)] #[doc(hidden)] pub enum Prio2Tasks
-    { MyTask2, MyTask7, } #[doc(hidden)] #[allow(non_upper_case_globals)]
-    static mut __rtic_internal__Prio2Tasks__RQ : rtic :: export :: Queue <
-    Prio2Tasks, 3usize > = rtic :: export :: Queue :: new() ;
-    #[doc = r" Trait for an idle task"] pub trait RticSwTask
-    {
-        type SpawnInput ;
-        #[doc = r" Task local variables initialization routine"] fn init() ->
-        Self ;
-        #[doc =
-        r" Function to be executing when the scheduled software task is dispatched"]
-        fn exec(& mut self, input : Self :: SpawnInput) ;
-    } #[doc(hidden)] #[inline] pub fn __rtic_sc_pend(irq_nbr : u16)
-    {
-        unsafe
-        {
-            (* rtic :: export :: NVIC :: PTR).ispr
-            [usize :: from(irq_nbr / 32)].write(1 << (irq_nbr % 32))
-        }
-    } #[doc = r" Computed priority Masks"] #[doc(hidden)]
-    #[allow(non_upper_case_globals)] const __rtic_internal_MASK_CHUNKS : usize
-    = rtic :: export ::
-    compute_mask_chunks([rp2040_hal :: pac :: Interrupt :: TIMER_IRQ_0 as u32,
-    rp2040_hal :: pac :: Interrupt :: TIMER_IRQ_2 as u32, rp2040_hal :: pac ::
-    Interrupt :: DMA_IRQ_0 as u32,]) ; #[doc(hidden)]
-    #[allow(non_upper_case_globals)] const __rtic_internal_MASKS :
-    [rtic :: export :: Mask < __rtic_internal_MASK_CHUNKS > ; 3] =
-    [rtic :: export ::
-    create_mask([rp2040_hal :: pac :: Interrupt :: TIMER_IRQ_2 as u32,]), rtic
-    :: export ::
-    create_mask([rp2040_hal :: pac :: Interrupt :: DMA_IRQ_0 as u32,]), rtic
-    :: export ::
-    create_mask([rp2040_hal :: pac :: Interrupt :: TIMER_IRQ_0 as u32,]),] ;
+                rp2040_hal :: pac :: CorePeripherals ::
+                steal().NVIC.set_priority(rp2040_hal :: pac :: Interrupt ::
+                TIMER_IRQ_1, 2u16 as u8) ; rp2040_hal :: pac :: NVIC ::
+                unmask(rp2040_hal :: pac :: Interrupt :: TIMER_IRQ_1) ;
+            }
+        }) ; loop { unsafe { core :: arch :: asm! ("wfi") ; } }
+    }
 }

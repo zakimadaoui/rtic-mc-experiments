@@ -1,7 +1,7 @@
 use syn::spanned::Spanned;
 
-use crate::ParsedRticApp;
 use crate::parser::ast::{HardwareTask, SharedResources};
+use crate::parser::RticSubApp;
 
 #[derive(Debug)]
 pub struct AppAnalysis {
@@ -10,10 +10,10 @@ pub struct AppAnalysis {
 }
 
 impl AppAnalysis {
-    pub fn run(app: &ParsedRticApp) -> syn::Result<Self> {
-        // hw interrupts bound to hadrware tasks
+    pub fn run(app: &RticSubApp) -> syn::Result<Self> {
+        // hw interrupts bound to hardware tasks
         let used_interrupts = app
-            .hardware_tasks
+            .tasks
             .iter()
             .filter_map(|t| Some((t.args.interrupt_handler_name.clone()?, t.args.priority)))
             .collect();
@@ -25,9 +25,10 @@ impl AppAnalysis {
 }
 
 pub fn update_resource_priorities(
-    shared: &mut SharedResources,
-    hw_tasks: &Vec<HardwareTask>,
+    shared: Option<&mut SharedResources>,
+    hw_tasks: &[HardwareTask],
 ) -> syn::Result<()> {
+    let Some(shared) = shared else { return Ok(()) };
     for task in hw_tasks.iter() {
         let task_priority = task.args.priority;
         for resource_ident in task.args.shared_idents.iter() {

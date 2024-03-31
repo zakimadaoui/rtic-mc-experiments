@@ -3,7 +3,7 @@ extern crate proc_macro;
 use proc_macro::TokenStream;
 use std::fs;
 
-use proc_macro2::TokenStream as TokenStream2;
+use proc_macro2::{Ident, TokenStream as TokenStream2};
 use project_root::get_project_root;
 use syn::{ItemMod, parse_macro_input};
 
@@ -13,8 +13,8 @@ pub use common::rtic_traits;
 pub use crate::analysis::AppAnalysis;
 use crate::codegen::CodeGen;
 use crate::parse_utils::RticAttr;
+pub use crate::parser::{ParsedRticApp, RticSubApp};
 pub use crate::parser::ast::AppArgs;
-pub use crate::parser::ParsedRticApp;
 
 mod analysis;
 mod codegen;
@@ -28,7 +28,7 @@ mod parser;
 **/
 
 pub struct RticAppBuilder {
-    core: Box<dyn ScHwPassImpl>,
+    core: Box<dyn StandardPassImpl>,
     multicore_pass: Option<Box<dyn RticPass>>,
     sw_pass: Option<Box<dyn RticPass>>,
     monotonics_pass: Option<Box<dyn RticPass>>,
@@ -46,7 +46,7 @@ pub enum CompilationPass {
 }
 
 impl RticAppBuilder {
-    pub fn new<T: ScHwPassImpl + 'static>(core_impl: T) -> Self {
+    pub fn new<T: StandardPassImpl + 'static>(core_impl: T) -> Self {
         Self {
             core: Box::new(core_impl),
             multicore_pass: None,
@@ -66,29 +66,30 @@ impl RticAppBuilder {
     }
 
     pub fn build_rtic_application(self, args: TokenStream, input: TokenStream) -> TokenStream {
+        // software pass
         let app_module = if let Some(ref sw_pass) = self.sw_pass {
             let app_attrs = RticAttr::parse_from_tokens(&args.clone().into()).unwrap(); // TODO: cleanup and remove unwraps
             let code = sw_pass.run_pass(app_attrs, input.into()).unwrap();
-
-            if let Ok(out) = get_project_root() {
-                let _ = fs::create_dir_all(out.join("examples"));
-                let _ = fs::write(
-                    out.join("examples/__expanded_sw_pass.rs"),
-                    code.to_string().as_bytes(),
-                );
-            }
-
             syn::parse2(code).unwrap()
         } else {
             parse_macro_input!(input as ItemMod)
         };
 
-        let parsed_app = match ParsedRticApp::parse(app_module.clone(), args.into()) {
+        // standard pass
+        let mut parsed_app = match ParsedRticApp::parse(app_module.clone(), args.into()) {
             Ok(parsed) => parsed,
             Err(e) => return e.to_compile_error().into(),
         };
 
-        let analysis = match AppAnalysis::run(&parsed_app) {
+        // update resource priorioties
+        for app in parsed_app.sub_apps.iter_mut() {
+            if let Err(e) = analysis::update_resource_priorities(app.shared.as_mut(), &app.tasks) {
+                return e.to_compile_error().into();
+            }
+        }
+
+        let analysis = parsed_app.sub_apps.iter().map(AppAnalysis::run).collect();
+        let analysis = match analysis {
             Ok(a) => a,
             Err(e) => return e.to_compile_error().into(),
         };
@@ -107,13 +108,14 @@ impl RticAppBuilder {
     }
 }
 
-/// Interface for providing hw/architecture specific details for implementing the hardware and resources pass
-pub trait ScHwPassImpl {
+/// Interface for providing hw/architecture specific details for implementing the standard tasks and resources pass
+pub trait StandardPassImpl {
     /// Code to be inserted after the call to Global init() and task init() functions
     /// This can for example enable interrupts used by the user and set their priorities
     fn post_init(
         &self,
-        app_info: &ParsedRticApp,
+        app_args: &AppArgs,
+        app_info: &RticSubApp,
         app_analysis: &AppAnalysis,
     ) -> Option<TokenStream2>;
 
@@ -125,7 +127,8 @@ pub trait ScHwPassImpl {
     /// and Tasks priorities. Return the generated code for statically stored priority masks
     fn compute_priority_masks(
         &self,
-        app_info: &ParsedRticApp,
+        app_args: &AppArgs,
+        app_info: &RticSubApp,
         app_analysis: &AppAnalysis,
     ) -> TokenStream2;
 
@@ -161,8 +164,11 @@ pub trait ScHwPassImpl {
                                    );}
     }
     */
-    fn impl_lock_mutex(&self) -> TokenStream2;
+    fn impl_lock_mutex(&self, app_info: &RticSubApp) -> TokenStream2;
 
     /// Implementation for WFI (Wait for interrupt) instruction to be used in default idle task
     fn wfi(&self) -> Option<TokenStream2>;
+
+    /// Entry name for specific core
+    fn entry_name(&self, core: u32) -> Ident;
 }

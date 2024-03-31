@@ -42,9 +42,10 @@ impl RticAttr {
     pub fn parse_from_tokens(tokens: &TokenStream2) -> syn::Result<Self> {
         let mut elements = HashMap::new();
         syn::meta::parser(|meta| {
-            let ident = meta.path.get_ident().unwrap().to_string(); // TODO: throw an error instead of unwrap
             let value: syn::Expr = meta.value()?.parse()?;
-            elements.insert(ident.clone(), value);
+            if let Some(ident) = meta.path.get_ident() {
+                elements.insert(ident.to_string(), value);
+            }
             Ok(())
         })
         .parse2(tokens.clone())?;

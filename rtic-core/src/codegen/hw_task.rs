@@ -5,13 +5,13 @@ use crate::parser::ast::{HardwareTask, RticTask, SharedResources};
 
 impl RticTask {
     /// Generates task definition, Context struct, resource proxies and binds task to appropriate interrupt
-    pub fn generate_task_def(&self, shared_resources: &SharedResources) -> TokenStream2 {
+    pub fn generate_task_def(&self, shared_resources: Option<&SharedResources>) -> TokenStream2 {
         let task_ty = &self.task_struct.ident;
         let task_static_handle = &self.name_uppercase();
         let task_struct = &self.task_struct;
         let task_impl = &self.struct_impl;
         let task_prio_impl = self.generate_priority_func();
-        let shared_mod = shared_resources.generate_shared_for_task(self);
+        let shared_mod = shared_resources.map(|shared| shared.generate_shared_for_task(self));
         quote! {
             //--------------------------------------------------------------------------------------
             static mut #task_static_handle: core::mem::MaybeUninit<#task_ty> = core::mem::MaybeUninit::uninit();
@@ -22,7 +22,7 @@ impl RticTask {
         }
     }
 
-    pub fn init_token_steam(&self) -> TokenStream2 {
+    pub fn task_init_call(&self) -> TokenStream2 {
         let task_ty = &self.name();
         let task_static_handle = &self.name_uppercase();
         quote! { #task_static_handle.write(#task_ty::init()); }

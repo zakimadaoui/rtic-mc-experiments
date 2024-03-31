@@ -1,6 +1,9 @@
 use proc_macro::TokenStream;
-use quote::quote;
-use rtic_core::{AppAnalysis, CompilationPass, ParsedRticApp, RticAppBuilder, ScHwPassImpl};
+use proc_macro2::{Ident, TokenStream as TokenStream2};
+use quote::{format_ident, quote};
+use rtic_core::{
+    AppAnalysis, AppArgs, CompilationPass, RticAppBuilder, RticSubApp, StandardPassImpl,
+};
 use syn::{parse_quote, ItemFn};
 
 extern crate proc_macro;
@@ -19,14 +22,22 @@ pub fn app(args: TokenStream, input: TokenStream) -> TokenStream {
     builder.build_rtic_application(args, input)
 }
 
-impl ScHwPassImpl for Rp2040Rtic {
+impl StandardPassImpl for Rp2040Rtic {
     fn post_init(
         &self,
-        app_info: &rtic_core::ParsedRticApp,
-        app_analysis: &rtic_core::AppAnalysis,
-    ) -> Option<proc_macro2::TokenStream> {
+        app_args: &AppArgs,
+        app_info: &RticSubApp,
+        app_analysis: &AppAnalysis,
+    ) -> Option<TokenStream2> {
+        // initialize core 1 from core 0 if the application is for multicore (cores > 1)
+        let core1_init = if app_info.core == 0 && app_args.cores > 1 {
+            Some(init_core1(app_args))
+        } else {
+            None
+        };
+
+        let peripheral_crate = &app_args.device;
         let inits = app_analysis.used_irqs.iter().map(|(irq_name, priority)| {
-            let peripheral_crate = &app_info.args.device;
             quote! {
                 unsafe {
                     //set interrupt priority
@@ -38,10 +49,13 @@ impl ScHwPassImpl for Rp2040Rtic {
                 }
             }
         });
-        Some(quote!(#(#inits)*))
+        Some(quote! {
+            #core1_init
+            #(#inits)*
+        })
     }
 
-    fn wfi(&self) -> Option<proc_macro2::TokenStream> {
+    fn wfi(&self) -> Option<TokenStream2> {
         Some(quote! {
             unsafe { core::arch::asm!("wfi" ); }
         })
@@ -63,19 +77,20 @@ impl ScHwPassImpl for Rp2040Rtic {
 
     fn compute_priority_masks(
         &self,
-        app_info: &ParsedRticApp,
+        app_args: &AppArgs,
+        app_info: &RticSubApp,
         _app_analysis: &AppAnalysis,
-    ) -> proc_macro2::TokenStream {
-        let peripheral_crate = &app_info.args.device;
+    ) -> TokenStream2 {
+        let peripheral_crate = &app_args.device;
 
         // irq names from hadware tasks
-        let irq_list_as_u32 = app_info.hardware_tasks.iter().filter_map(|t| {
+        let irq_list_as_u32 = app_info.tasks.iter().filter_map(|t| {
             let irq_name = t.args.interrupt_handler_name.as_ref()?;
             Some(quote! { #peripheral_crate::Interrupt::#irq_name as u32, })
         });
 
         let mut irq_prio_map = [Vec::new(), Vec::new(), Vec::new()];
-        for hw_task in app_info.hardware_tasks.iter() {
+        for hw_task in app_info.tasks.iter() {
             let prio = hw_task.args.priority;
             if (1..=3).contains(&prio) {
                 let Some(irq_name) = hw_task.args.interrupt_handler_name.as_ref() else {
@@ -97,24 +112,36 @@ impl ScHwPassImpl for Rp2040Rtic {
             })
         }
 
+        let core = app_info.core;
+        let chunks_ident = format_ident!("__rtic_internal_MASK_CHUNKS_core{core}");
+        let masks_ident = format_ident!("__rtic_internal_MASKS_core{core}");
         quote! {
             #[doc(hidden)]
             #[allow(non_upper_case_globals)]
-            const __rtic_internal_MASK_CHUNKS: usize = rtic::export::compute_mask_chunks([
+            const #chunks_ident: usize = rtic::export::compute_mask_chunks([
                 #(#irq_list_as_u32)*
             ]);
 
             #[doc(hidden)]
             #[allow(non_upper_case_globals)]
-            const __rtic_internal_MASKS: [rtic::export::Mask<__rtic_internal_MASK_CHUNKS>; 3] = [
+            const #masks_ident: [rtic::export::Mask<#chunks_ident>; 3] = [
                 #(#masks)*
             ];
         }
     }
 
-    fn impl_lock_mutex(&self) -> proc_macro2::TokenStream {
+    fn impl_lock_mutex(&self, app_info: &RticSubApp) -> TokenStream2 {
+        let core = app_info.core;
+        let masks_ident = format_ident!("__rtic_internal_MASKS_core{core}");
         quote! {
-            unsafe {rtic::export::lock(resource, task_priority, CEILING, &__rtic_internal_MASKS, f);}
+            unsafe { rtic::export::lock(resource, task_priority, CEILING, &#masks_ident, f); }
+        }
+    }
+
+    fn entry_name(&self, core: u32) -> Ident {
+        match core {
+            0 => format_ident!("main"),
+            _ => format_ident!("core{core}_entry"),
         }
     }
 }
@@ -131,5 +158,31 @@ impl ScSoftwarePassImpl for SwPassBackend {
         });
         empty_body_fn.block = Box::new(body);
         empty_body_fn
+    }
+}
+
+fn init_core1(app_info: &AppArgs) -> TokenStream2 {
+    let pac = &app_info.device;
+    quote! {
+        /// Stack for core 1
+        ///
+        /// Core 0 gets its stack via the normal route - any memory not used by static values is
+        /// reserved for stack and initialised by cortex-m-rt.
+        /// To get the same for Core 1, we would need to compile everything seperately and
+        /// modify the linker file for both programs, and that's quite annoying.
+        /// So instead, core1.spawn takes a [usize] which gets used for the stack.
+        /// NOTE: We use the `Stack` struct here to ensure that it has 32-byte alignment, which allows
+        /// the stack guard to take up the least amount of usable RAM.
+        static mut CORE1_STACK: rtic::export::Stack<4096> = rtic::export::Stack::new();
+
+        let mut pac = unsafe { #pac::Peripherals::steal() };
+
+        // The single-cycle I/O block controls our GPIO pins
+        let mut sio = rtic::export::Sio::new(pac.SIO);
+
+        let mut mc = rtic::export::Multicore::new(&mut pac.PSM, &mut pac.PPB, &mut sio.fifo);
+        let cores = mc.cores();
+        let core1 = &mut cores[1];
+        let _ = core1.spawn(unsafe { &mut CORE1_STACK.mem }, move || core1_entry());
     }
 }
