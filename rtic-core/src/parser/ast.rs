@@ -2,8 +2,8 @@ use heck::ToSnakeCase;
 use proc_macro2::Span;
 use quote::ToTokens;
 use syn::{
-    Expr, ExprArray, Ident, ItemFn, ItemImpl, ItemStruct, LitInt, Meta, parse::Parser,
-    spanned::Spanned,
+    parse::Parser, spanned::Spanned, Expr, ExprArray, Ident, ItemFn, ItemImpl, ItemStruct, LitInt,
+    Meta,
 };
 
 #[derive(Debug)]
@@ -34,7 +34,7 @@ impl InitTaskArgs {
             }
             Ok(())
         })
-            .parse2(args.tokens)?;
+        .parse2(args.tokens)?;
 
         let core = core
             .and_then(|core| core.base10_parse().ok())

@@ -2,7 +2,7 @@ use proc_macro::TokenStream;
 use proc_macro2::{Ident, TokenStream as TokenStream2};
 use quote::{format_ident, quote};
 use rtic_core::{
-    AppAnalysis, AppArgs, CompilationPass, RticAppBuilder, RticSubApp, StandardPassImpl,
+    SubAnalysis, AppArgs, CompilationPass, RticAppBuilder, SubApp, StandardPassImpl,
 };
 use syn::{parse_quote, ItemFn};
 
@@ -10,12 +10,12 @@ extern crate proc_macro;
 
 struct Rp2040Rtic;
 
-use rtic_sw_pass::{ScSoftwarePass, ScSoftwarePassImpl};
+use rtic_sw_pass::{SoftwarePass, SoftwarePassImpl};
 
 #[proc_macro_attribute]
 pub fn app(args: TokenStream, input: TokenStream) -> TokenStream {
     // use the standard software pass provided by rtic-sw-pass crate
-    let sw_pass = Box::new(ScSoftwarePass::new(SwPassBackend));
+    let sw_pass = Box::new(SoftwarePass::new(SwPassBackend));
 
     let mut builder = RticAppBuilder::new(Rp2040Rtic);
     builder.add_compilation_pass(CompilationPass::SwPass(sw_pass));
@@ -26,8 +26,8 @@ impl StandardPassImpl for Rp2040Rtic {
     fn post_init(
         &self,
         app_args: &AppArgs,
-        app_info: &RticSubApp,
-        app_analysis: &AppAnalysis,
+        app_info: &SubApp,
+        app_analysis: &SubAnalysis,
     ) -> Option<TokenStream2> {
         // initialize core 1 from core 0 if the application is for multicore (cores > 1)
         let core1_init = if app_info.core == 0 && app_args.cores > 1 {
@@ -78,8 +78,8 @@ impl StandardPassImpl for Rp2040Rtic {
     fn compute_priority_masks(
         &self,
         app_args: &AppArgs,
-        app_info: &RticSubApp,
-        _app_analysis: &AppAnalysis,
+        app_info: &SubApp,
+        _app_analysis: &SubAnalysis,
     ) -> TokenStream2 {
         let peripheral_crate = &app_args.device;
 
@@ -130,7 +130,7 @@ impl StandardPassImpl for Rp2040Rtic {
         }
     }
 
-    fn impl_lock_mutex(&self, app_info: &RticSubApp) -> TokenStream2 {
+    fn impl_lock_mutex(&self, app_info: &SubApp) -> TokenStream2 {
         let core = app_info.core;
         let masks_ident = format_ident!("__rtic_internal_MASKS_core{core}");
         quote! {
@@ -147,7 +147,7 @@ impl StandardPassImpl for Rp2040Rtic {
 }
 
 struct SwPassBackend;
-impl ScSoftwarePassImpl for SwPassBackend {
+impl SoftwarePassImpl for SwPassBackend {
     fn fill_pend_fn(&self, mut empty_body_fn: ItemFn) -> ItemFn {
         let body = parse_quote!({
             // taken from cortex-m implementation

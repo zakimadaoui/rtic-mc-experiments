@@ -10,7 +10,7 @@ use crate::common::rtic_traits::{HWT_TRAIT_TY, IDLE_TRAIT_TY, SWT_TRAIT_TY};
 pub mod ast;
 
 #[derive(Debug)]
-pub struct RticSubApp {
+pub struct SubApp {
     pub core: u32,
     pub shared: Option<SharedResources>,
     pub init: InitTask,
@@ -19,15 +19,15 @@ pub struct RticSubApp {
 }
 
 #[derive(Debug)]
-pub struct ParsedRticApp {
+pub struct App {
     pub app_name: Ident,
     pub args: AppArgs,
-    pub sub_apps: Vec<RticSubApp>,
+    pub sub_apps: Vec<SubApp>,
     pub user_includes: Vec<ItemUse>,
     pub other_code: Vec<Item>,
 }
 
-impl ParsedRticApp {
+impl App {
     pub fn parse(module: syn::ItemMod, args: proc_macro2::TokenStream) -> syn::Result<Self> {
         let span = module.span();
         let args = AppArgs::parse(args)?;
@@ -85,7 +85,7 @@ impl ParsedRticApp {
         // partition into sub_applications
         let mut sub_apps = Vec::with_capacity(args.cores as usize);
         for core in 0..args.cores {
-            sub_apps.push(RticSubApp {
+            sub_apps.push(SubApp {
                 core,
                 shared: shared.remove(&core),
                 init: inits
@@ -95,10 +95,6 @@ impl ParsedRticApp {
                 tasks: tasks.remove(&core).unwrap_or_default(),
             })
         }
-
-        // TODO: do this in elaboration step
-        // update shared resources priorities based on task priorities and the resources they share
-        // analysis::update_resource_priorities(&mut shared, &hardware_tasks)?;
 
         Ok(Self {
             app_name: module.ident,

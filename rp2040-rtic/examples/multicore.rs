@@ -5,7 +5,7 @@
 #[used]
 pub static BOOT2: [u8; 256] = rp2040_boot2::BOOT_LOADER_GENERIC_03H;
 
-#[rtic::app(device=rp2040_hal::pac, peripherals=false, dispatchers=[DMA_IRQ_0], cores = 2)]
+#[rtic::app(device=rp2040_hal::pac, peripherals=false, dispatchers=[[DMA_IRQ_0], [DMA_IRQ_1]], cores = 2)]
 pub mod my_app {
 
     use cortex_m::asm;
@@ -34,8 +34,7 @@ pub mod my_app {
     }
 
     #[init(core = 0)]
-    fn system_init() -> SharedResources {
-
+    fn init_core0() -> SharedResources {
         let mut device = pac::Peripherals::take().unwrap();
         let cpu_id = device.SIO.cpuid.read().bits();
         info!("staring core {} ...", cpu_id);
@@ -82,13 +81,6 @@ pub mod my_app {
         }
     }
 
-    #[init(core = 1)]
-    fn init2() {
-        let cpu_id = unsafe { pac::Peripherals::steal().SIO.cpuid.read().bits() };
-        info!("staring core {} ...", cpu_id);
-        pac::NVIC::pend(Interrupt::TIMER_IRQ_1);
-    }
-
     #[task(binds = TIMER_IRQ_0 , priority = 3, shared = [alarm, led])]
     struct MyTask {
         /* local resources */
@@ -97,7 +89,10 @@ pub mod my_app {
     }
     impl RticTask for MyTask {
         fn init() -> Self {
-            Self { is_high: false , counter : 0}
+            Self {
+                is_high: false,
+                counter: 0,
+            }
         }
 
         fn exec(&mut self) {
@@ -111,7 +106,7 @@ pub mod my_app {
                 }
             });
 
-            self.counter+=1;
+            self.counter += 1;
             let message = self.counter;
             if let Err(_e) = MyTask2::spawn(message) {
                 error!("couldn't spawn task 2 for the first time ")
@@ -126,21 +121,7 @@ pub mod my_app {
             });
         }
     }
-
-    #[task(binds = TIMER_IRQ_1 , priority = 2, core = 1)]
-    struct MyCore1Task;
-    impl RticTask for MyCore1Task {
-        fn init() -> Self {
-            Self
-        }
-
-        fn exec(&mut self) {
-            let cpu_id = unsafe { pac::Peripherals::steal().SIO.cpuid.read().bits() };
-            info!("executing task from core {}", cpu_id);
-        }
-    }
-
-    #[task(priority = 2, shared = [led])]
+    #[sw_task(priority = 2, shared = [led])]
     struct MyTask2;
     impl RticSwTask for MyTask2 {
         type SpawnInput = u16;
@@ -151,13 +132,13 @@ pub mod my_app {
         fn exec(&mut self, input: u16) {
             info!("task2 spawned with input {}", input);
 
-            if let Err(_e) = MyTask7::spawn(input+10) {
+            if let Err(_e) = MyTask7::spawn(input + 10) {
                 error!("couldn't spawn task 7")
             }
         }
     }
 
-    #[task(priority = 2, shared = [led])]
+    #[sw_task(priority = 2, shared = [led])]
     struct MyTask7;
     impl RticSwTask for MyTask7 {
         type SpawnInput = u16;
@@ -193,10 +174,57 @@ pub mod my_app {
         fn exec(&mut self) -> ! {
             loop {
                 self.count += 1;
-                info!("looping in idle... {}", self.count);
+                // info!("looping in idle... {}", self.count);
                 asm::delay(120000000);
                 // asm::delay(120000000);
             }
         }
     }
+
+
+    //============================================= Second core ===================================
+
+    #[init(core = 1)]
+    fn init_core1() {
+        let cpu_id = unsafe { pac::Peripherals::steal().SIO.cpuid.read().bits() };
+        info!("staring core {} ...", cpu_id);
+        pac::NVIC::pend(Interrupt::TIMER_IRQ_1);
+    }
+
+    #[task(binds = TIMER_IRQ_1 , priority = 2, core = 1)]
+    struct MyCore1Task;
+    impl RticTask for MyCore1Task {
+        fn init() -> Self {
+            Self
+        }
+
+        fn exec(&mut self) {
+            let cpu_id = unsafe { pac::Peripherals::steal().SIO.cpuid.read().bits() };
+            info!("executing task from core {}", cpu_id);
+
+            if let Err(_e) = MyCore1SwTask::spawn(()) {
+                error!("couldn't spawn software task on core {} for the first time", cpu_id)
+            }
+
+            if let Err(_e) = MyCore1SwTask::spawn(()) {
+                error!("couldn't spawn software task on core {} for the second time", cpu_id)
+            }
+        }
+    }
+
+    #[sw_task(priority = 1, core = 1)]
+    struct MyCore1SwTask;
+    impl RticSwTask for MyCore1SwTask {
+        type SpawnInput = ();
+
+        fn init() -> Self {
+            Self
+        }
+
+        fn exec(&mut self, _input: ()) {
+            let cpu_id = unsafe { pac::Peripherals::steal().SIO.cpuid.read().bits() };
+            info!("executing software task from core {}", cpu_id);
+        }
+    }
+
 }

@@ -1,27 +1,27 @@
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 
-use crate::analysis::AppAnalysis;
+use crate::analysis::Analysis;
 use crate::common::rtic_functions::{get_interrupt_free_fn, INTERRUPT_FREE_FN};
 use crate::common::rtic_traits::get_rtic_traits_mod;
-use crate::parser::{ast::IdleTask, ParsedRticApp};
 use crate::parser::ast::{RticTask, SharedResources};
-use crate::RticAppBuilder;
+use crate::parser::{ast::IdleTask, App};
+use crate::StandardPassImpl;
 
 pub mod hw_task;
 mod shared_resources;
 
 pub struct CodeGen<'a> {
-    app: &'a ParsedRticApp,
-    analysis: &'a Vec<AppAnalysis>,
-    implementation: &'a RticAppBuilder,
+    app: &'a App,
+    analysis: &'a Analysis,
+    implementation: &'a dyn StandardPassImpl,
 }
 
 impl<'a> CodeGen<'a> {
     pub fn new(
-        implementation: &'a RticAppBuilder,
-        app: &'a ParsedRticApp,
-        analysis: &'a Vec<AppAnalysis>,
+        implementation: &'a dyn StandardPassImpl,
+        app: &'a App,
+        analysis: &'a Analysis,
     ) -> Self {
         Self {
             app,
@@ -38,7 +38,7 @@ impl<'a> CodeGen<'a> {
         let peripheral_crate = &app.args.device;
         let user_includes = &app.user_includes;
         let user_code = &app.other_code;
-        let interrupt_free_fn = get_interrupt_free_fn(implementation.core.as_ref());
+        let interrupt_free_fn = get_interrupt_free_fn(implementation);
 
         // traits
         let rtic_traits_mod = get_rtic_traits_mod();
@@ -71,10 +71,14 @@ impl<'a> CodeGen<'a> {
 
     fn generate_sub_apps(&self) -> TokenStream2 {
         let implementation = self.implementation;
-        let iter = self.app.sub_apps.iter().zip(self.analysis.iter());
+        let iter = self
+            .app
+            .sub_apps
+            .iter()
+            .zip(self.analysis.sub_analysis.iter());
         let args = &self.app.args;
         let apps = iter.map(|(app, analysis)| {
-            let post_init = implementation.core.post_init(args, app, analysis);
+            let post_init = implementation.post_init(args, app, analysis);
 
             // init
             let def_init_task = &app.init.body;
@@ -86,7 +90,7 @@ impl<'a> CodeGen<'a> {
                 Some(idle_task)
             });
 
-            let call_idle_task = generate_idle_call(app.idle.as_ref(), implementation.core.wfi());
+            let call_idle_task = generate_idle_call(app.idle.as_ref(), implementation.wfi());
 
             // hw tasks
             let task_init_calls = app.tasks.iter().map(RticTask::task_init_call);
@@ -106,20 +110,18 @@ impl<'a> CodeGen<'a> {
             let shared_resources_handle = shared.map(SharedResources::name_uppercase);
             let shared_resources_handle = shared_resources_handle.iter();
             let resource_proxies = app.shared.as_ref().map(|shared| {
-                shared.generate_resource_proxies(&implementation.core.impl_lock_mutex(app))
+                shared.generate_resource_proxies(&implementation.impl_lock_mutex(app))
             });
 
             // priority masks
-            let priority_masks = implementation
-                .core
-                .compute_priority_masks(args, app, analysis);
-            let entry_name = implementation.core.entry_name(app.core);
+            let priority_masks = implementation.compute_priority_masks(args, app, analysis);
+            let entry_name = implementation.entry_name(app.core);
 
             let interrupt_free = format_ident!("{}", INTERRUPT_FREE_FN);
 
-            let doc = format!("CORE {}", app.core);
+            let doc = format!(" CORE {}", app.core);
             quote! {
-                #[doc = " ==================================== "]
+                #[doc = " ===================================="]
                 #[doc = #doc]
                 #[doc = " ==================================== "]
                 /// Computed priority Masks
@@ -137,7 +139,7 @@ impl<'a> CodeGen<'a> {
                 /// bind hw tasks to interrupts
                 #(#hw_tasks_binds)*
 
-                #[doc = "Entry of "]
+                #[doc = r" Entry of "]
                 #[doc = #doc]
 
                 #[no_mangle]

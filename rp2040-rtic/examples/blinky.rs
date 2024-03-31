@@ -117,7 +117,7 @@ pub mod my_app {
         }
     }
 
-    #[task(priority = 2, shared = [led])]
+    #[sw_task(priority = 2, shared = [led])]
     struct MyTask2;
     impl RticSwTask for MyTask2 {
         type SpawnInput = u16;
@@ -134,7 +134,7 @@ pub mod my_app {
         }
     }
 
-    #[task(priority = 2, shared = [led])]
+    #[sw_task(priority = 2, shared = [led])]
     struct MyTask7;
     impl RticSwTask for MyTask7 {
         type SpawnInput = u16;

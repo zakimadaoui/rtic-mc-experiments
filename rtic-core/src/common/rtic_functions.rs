@@ -1,5 +1,5 @@
 use quote::format_ident;
-use syn::{ItemFn, parse_quote};
+use syn::{parse_quote, ItemFn};
 
 use crate::StandardPassImpl;
 

@@ -10,10 +10,11 @@ use syn::{ItemMod, parse_macro_input};
 pub use common::rtic_functions;
 pub use common::rtic_traits;
 
-pub use crate::analysis::AppAnalysis;
+use crate::analysis::Analysis;
+pub use crate::analysis::SubAnalysis;
 use crate::codegen::CodeGen;
 use crate::parse_utils::RticAttr;
-pub use crate::parser::{ParsedRticApp, RticSubApp};
+pub use crate::parser::{App, SubApp};
 pub use crate::parser::ast::AppArgs;
 
 mod analysis;
@@ -76,7 +77,7 @@ impl RticAppBuilder {
         };
 
         // standard pass
-        let mut parsed_app = match ParsedRticApp::parse(app_module.clone(), args.into()) {
+        let mut parsed_app = match App::parse(app_module.clone(), args.into()) {
             Ok(parsed) => parsed,
             Err(e) => return e.to_compile_error().into(),
         };
@@ -88,13 +89,12 @@ impl RticAppBuilder {
             }
         }
 
-        let analysis = parsed_app.sub_apps.iter().map(AppAnalysis::run).collect();
-        let analysis = match analysis {
+        let analysis = match Analysis::run(&parsed_app) {
             Ok(a) => a,
             Err(e) => return e.to_compile_error().into(),
         };
 
-        let code = CodeGen::new(&self, &parsed_app, &analysis).run();
+        let code = CodeGen::new(self.core.as_ref(), &parsed_app, &analysis).run();
 
         if let Ok(out) = get_project_root() {
             let _ = fs::create_dir_all(out.join("examples"));
@@ -115,8 +115,8 @@ pub trait StandardPassImpl {
     fn post_init(
         &self,
         app_args: &AppArgs,
-        app_info: &RticSubApp,
-        app_analysis: &AppAnalysis,
+        app_info: &SubApp,
+        app_analysis: &SubAnalysis,
     ) -> Option<TokenStream2>;
 
     /// Fill the body of the rtic internal critical section function with hardware specific implementation.
@@ -128,8 +128,8 @@ pub trait StandardPassImpl {
     fn compute_priority_masks(
         &self,
         app_args: &AppArgs,
-        app_info: &RticSubApp,
-        app_analysis: &AppAnalysis,
+        app_info: &SubApp,
+        app_analysis: &SubAnalysis,
     ) -> TokenStream2;
 
     /// Provide the body mutex implementation:
@@ -164,7 +164,7 @@ pub trait StandardPassImpl {
                                    );}
     }
     */
-    fn impl_lock_mutex(&self, app_info: &RticSubApp) -> TokenStream2;
+    fn impl_lock_mutex(&self, app_info: &SubApp) -> TokenStream2;
 
     /// Implementation for WFI (Wait for interrupt) instruction to be used in default idle task
     fn wfi(&self) -> Option<TokenStream2>;

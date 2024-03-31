@@ -1,16 +1,32 @@
 use syn::spanned::Spanned;
 
+use crate::App;
 use crate::parser::ast::{HardwareTask, SharedResources};
-use crate::parser::RticSubApp;
+use crate::parser::SubApp;
+
+pub struct Analysis {
+    pub sub_analysis: Vec<SubAnalysis>,
+}
+
+impl Analysis {
+    pub fn run(app: &App) -> syn::Result<Self> {
+        let sub_analysis = app
+            .sub_apps
+            .iter()
+            .map(SubAnalysis::run)
+            .collect::<syn::Result<_>>()?;
+        Ok(Self { sub_analysis })
+    }
+}
 
 #[derive(Debug)]
-pub struct AppAnalysis {
+pub struct SubAnalysis {
     // used interrupts and their priorities
     pub used_irqs: Vec<(syn::Ident, u16)>,
 }
 
-impl AppAnalysis {
-    pub fn run(app: &RticSubApp) -> syn::Result<Self> {
+impl SubAnalysis {
+    pub fn run(app: &SubApp) -> syn::Result<Self> {
         // hw interrupts bound to hardware tasks
         let used_interrupts = app
             .tasks

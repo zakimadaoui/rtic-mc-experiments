@@ -9,17 +9,27 @@ pub mod ast;
 
 pub const SWT_TRAIT_TY: &str = "RticSwTask";
 
-pub struct ParsedApp {
+/// Type to represent a sub application (application on a single core)
+pub struct SubApp {
+    pub core: u32,
+    pub dispatchers: Vec<syn::Path>,
+    pub sw_tasks: Vec<SoftwareTask>,
+}
+
+/// Type to represent an RTIC application (withing software pass context)
+/// The application contains one or more sub-applications (one application per-core)
+pub struct App {
     pub mod_visibility: Visibility,
     pub mod_ident: Ident,
     pub app_params: AppParameters,
-    pub sw_tasks: Vec<SoftwareTask>,
+    /// a list of sub-applications, one sub-app per core.
+    pub sub_apps: Vec<SubApp>,
     pub rest_of_code: Vec<Item>,
 }
 
-impl ParsedApp {
+impl App {
     pub fn parse(params: &RticAttr, mut app_mod: ItemMod) -> syn::Result<Self> {
-        let app_params = AppParameters::from_attr(&params)?;
+        let app_params = AppParameters::from_attr(params)?;
         let app_mod_items = app_mod.content.take().unwrap_or_default().1;
         let mut sw_task_structs = Vec::new();
         let mut sw_task_impls = HashMap::new();
@@ -28,8 +38,8 @@ impl ParsedApp {
         for item in app_mod_items {
             match item {
                 Item::Struct(strct) => {
-                    if let Some((params, attr)) = Self::parse_sw_task_params(&strct) {
-                        sw_task_structs.push((attr, strct, params))
+                    if let Some(attr_idx) = Self::is_struct_with_attr(&strct, "sw_task") {
+                        sw_task_structs.push((strct, attr_idx))
                     } else {
                         rest_of_code.push(Item::Struct(strct))
                     }
@@ -45,8 +55,9 @@ impl ParsedApp {
             }
         }
 
-        let mut sw_tasks = Vec::with_capacity(sw_task_structs.len());
-        for (attr, task_struct, params) in sw_task_structs {
+        let cores = app_params.cores;
+        let mut sw_tasks = HashMap::with_capacity(cores as usize);
+        for (task_struct, attr_idx) in sw_task_structs {
             let task_impl = sw_task_impls
                 .remove(&task_struct.ident)
                 .ok_or(syn::Error::new(
@@ -56,11 +67,27 @@ impl ParsedApp {
                         task_struct.ident
                     ),
                 ))?;
-            sw_tasks.push(SoftwareTask {
-                attr,
+
+            let attrs = RticAttr::parse_from_attr(&task_struct.attrs[attr_idx])?;
+            let params = SoftwareTaskParams::from_attr(&attrs);
+            let task = SoftwareTask {
+                params,
                 task_struct,
                 task_impl,
-                params,
+            };
+            sw_tasks
+                .entry(task.params.core)
+                .or_insert(Vec::new())
+                .push(task);
+        }
+
+        let mut sub_apps = Vec::with_capacity(cores as usize);
+        for core in 0..cores {
+            let dispatchers = app_params.dispatchers.get(&core).cloned().unwrap_or_default();
+            sub_apps.push(SubApp {
+                core,
+                dispatchers,
+                sw_tasks: sw_tasks.remove(&core).unwrap_or_default(),
             })
         }
 
@@ -68,20 +95,17 @@ impl ParsedApp {
             mod_ident: app_mod.ident,
             mod_visibility: app_mod.vis,
             app_params,
-            sw_tasks,
+            sub_apps,
             rest_of_code,
         })
     }
 
-    fn parse_sw_task_params(strct: &ItemStruct) -> Option<(SoftwareTaskParams, RticAttr)> {
-        for attr in strct.attrs.iter() {
-            let rtic_attr = RticAttr::parse_from_attr(attr).ok();
-            if let Some(rtic_attr) = rtic_attr {
-                if rtic_attr.elements.get("binds").is_some() || rtic_attr.name.is_none() {
-                    // sw tasks have a name ("task") and do not have "binds" argument
-                    return None;
-                }
-                return SoftwareTaskParams::from_attr(&rtic_attr).map(|params| (params, rtic_attr));
+    /// returns the index of the `attr_name` attribute if found in the attribute list of some struct
+    fn is_struct_with_attr(strct: &ItemStruct, attr_name: &str) -> Option<usize> {
+        for (i, attr) in strct.attrs.iter().enumerate() {
+            let path = attr.meta.path();
+            if path.segments.len() == 1 && path.segments[0].ident == attr_name {
+                return Some(i);
             }
         }
         None

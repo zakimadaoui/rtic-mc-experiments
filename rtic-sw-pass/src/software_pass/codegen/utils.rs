@@ -15,12 +15,12 @@ pub fn ident_snakecase(ident: &Ident) -> Ident {
     Ident::new(&name, Span::call_site())
 }
 
-pub fn priority_ty_ident(priority: u16) -> Ident {
-    format_ident!("Prio{priority}Tasks")
+pub fn priority_ty_ident(priority: u16, core: u32) -> Ident {
+    format_ident!("Core{core}Prio{priority}Tasks")
 }
 
-pub fn dispatcher_ident(priority: u16) -> Ident {
-    format_ident!("Priority{priority}Dispatcher")
+pub fn dispatcher_ident(priority: u16, core: u32) -> Ident {
+    format_ident!("Core{core}Priority{priority}Dispatcher")
 }
 pub fn priority_queue_ident(prio_ty: &Ident) -> Ident {
     format_ident!("__rtic_internal__{prio_ty}__RQ")

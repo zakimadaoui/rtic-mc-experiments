@@ -1,29 +1,50 @@
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 
-use crate::parse::ParsedApp;
+use crate::software_pass::parse::{App, SubApp};
 use proc_macro2::Span;
 
-#[derive(Debug)]
-pub struct AppAnalysis {
-    pub sw_tasks_pgroups: BTreeMap<u16, Vec<syn::Ident>>,
-    pub dispatcher_priorities: BTreeMap<u16, syn::Ident>,
+pub struct Analysis {
+    /// analysis for every sub-application (per-core analysis)
+    pub sub_analysis: Vec<SubAnalysis>,
 }
 
-impl AppAnalysis {
-    pub fn run(app: &ParsedApp) -> syn::Result<Self> {
+impl Analysis {
+    pub fn run(app: &App) -> syn::Result<Self> {
+        let sub_analysis = app
+            .sub_apps
+            .iter()
+            .map(SubAnalysis::analyse_subapp)
+            .collect::<syn::Result<_>>()?;
+        Ok(Self { sub_analysis })
+    }
+}
+
+/// Per-core/Sub application analysis
+#[derive(Debug)]
+pub struct SubAnalysis {
+    pub core: u32,
+    /// Maps every group of software tasks to some priority level
+    /// Tasks are identified by their `Ident` (the name of the task struct)
+    pub tasks_priority_map: HashMap<u16, Vec<syn::Ident>>,
+    /// Maps every dispatcher to a priority level
+    pub dispatcher_priority_map: HashMap<u16, syn::Path>,
+}
+
+impl SubAnalysis {
+    fn analyse_subapp(sub_app: &SubApp) -> syn::Result<Self> {
         // group sw tasks based on their associated priorities
-        let mut sw_tasks_pgroups: BTreeMap<u16, Vec<syn::Ident>> = BTreeMap::new();
-        for task in app.sw_tasks.iter() {
+        let mut sw_tasks_pgroups: HashMap<u16, Vec<syn::Ident>> =
+            HashMap::with_capacity(sub_app.dispatchers.len());
+        for task in sub_app.sw_tasks.iter() {
             let task_prio = task.params.priority;
-            if let Some(tasks) = sw_tasks_pgroups.get_mut(&task_prio) {
-                tasks.push(task.name().clone());
-            } else {
-                let _ = sw_tasks_pgroups.insert(task_prio, vec![task.name().clone()]);
-            }
+            sw_tasks_pgroups
+                .entry(task_prio)
+                .or_default()
+                .push(task.name().clone());
         }
 
         // check if the number of dispatchers meets the number of sw task priority groups
-        let n_dispatchers = app.app_params.dispatchers.len();
+        let n_dispatchers = sub_app.dispatchers.len();
         let n_priority_groups = sw_tasks_pgroups.len();
         if n_dispatchers < n_priority_groups {
             return Err(syn::Error::new(
@@ -32,8 +53,8 @@ impl AppAnalysis {
             ));
         }
 
-        // bind dispatchers to priorities
-        let mut dispatchers = app.app_params.dispatchers.clone();
+        // map dispatchers to priorities
+        let mut dispatchers = sub_app.dispatchers.clone();
         let dispatcher_priorities = sw_tasks_pgroups
             .keys()
             .copied()
@@ -41,8 +62,9 @@ impl AppAnalysis {
             .collect();
 
         Ok(Self {
-            sw_tasks_pgroups,
-            dispatcher_priorities,
+            core: sub_app.core,
+            tasks_priority_map: sw_tasks_pgroups,
+            dispatcher_priority_map: dispatcher_priorities,
         })
     }
 }

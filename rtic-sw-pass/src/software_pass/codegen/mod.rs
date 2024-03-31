@@ -1,24 +1,24 @@
 mod utils;
 
-use crate::software_pass::analyze::AppAnalysis;
+use crate::software_pass::analyze::{Analysis, SubAnalysis};
 use crate::software_pass::parse::ast::SoftwareTask;
-use crate::software_pass::parse::{ParsedApp, SWT_TRAIT_TY};
-use crate::ScSoftwarePassImpl;
-use proc_macro2::TokenStream;
+use crate::software_pass::parse::{App, SWT_TRAIT_TY};
+use crate::SoftwarePassImpl;
+use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote};
-use syn::{ItemFn, parse_quote};
+use syn::{parse_quote, ItemFn, Path, Meta, LitInt};
 
 pub struct CodeGen<'a> {
-    app: &'a ParsedApp,
-    analysis: &'a AppAnalysis,
-    implementation: &'a dyn ScSoftwarePassImpl,
+    app: App,
+    analysis: Analysis,
+    implementation: &'a dyn SoftwarePassImpl,
 }
 
 impl<'a> CodeGen<'a> {
     pub fn new(
-        app: &'a ParsedApp,
-        analysis: &'a AppAnalysis,
-        implementation: &'a dyn ScSoftwarePassImpl,
+        app: App,
+        analysis: Analysis,
+        implementation: &'a dyn SoftwarePassImpl,
     ) -> CodeGen<'a> {
         Self {
             app,
@@ -27,27 +27,11 @@ impl<'a> CodeGen<'a> {
         }
     }
 
-    pub fn run(&self) -> TokenStream {
-        let app = self.app;
-        let analysis = self.analysis;
-        let sw_tasks = app.sw_tasks.iter().map(|task| {
-            let task_struct = &task.task_struct;
-            let task_user_impl = &task.task_impl;
-            let spawn_impl = task.generate_spawn_api(app, analysis);
-
-            quote! {
-                #task_struct
-                #task_user_impl
-                #spawn_impl
-            }
-        });
-
-        let dispatcher_tasks = self.generate_dispatcher_tasks();
-
+    pub fn run(&mut self) -> TokenStream {
+        // For every sub-application, generate the software tasks and their dispatchers and associated queues and types.
+        let sub_apps = self.generate_subapps();
         let pend_fn_def = self.get_pend_fn();
-
-        let user_code = &app.rest_of_code;
-
+        let rest_of_code = &self.app.rest_of_code;
         let software_task_trait = format_ident!("{SWT_TRAIT_TY}");
         let sw_task_trait_def = quote! {
             /// Trait for an idle task
@@ -59,91 +43,18 @@ impl<'a> CodeGen<'a> {
                 fn exec(&mut self, input: Self::SpawnInput);
             }
         };
-
-        let mod_visibility = &app.mod_visibility;
-        let mod_ident = &app.mod_ident;
+        let mod_visibility = &self.app.mod_visibility;
+        let mod_ident = &self.app.mod_ident;
 
         quote! {
             #mod_visibility mod #mod_ident {
-                #(#user_code)*
-                /// ============================= Software-pass content ====================================
-                #(#sw_tasks)*
-                #dispatcher_tasks
+                #(#rest_of_code)*
+                #sub_apps
+                /// RTIC Software task trait
                 #sw_task_trait_def
+                /// Core local interrupt pending
                 #pend_fn_def
             }
-        }
-    }
-
-    /// generates:
-    /// - an enum type for each group of tasks of the same priority
-    /// - a ready queue for each group of tasks of the same priority
-    /// - A dispatcher hw task for each priority level
-    fn generate_dispatcher_tasks(&self) -> TokenStream {
-        let analysis = self.analysis;
-        let dispatchers = &analysis.dispatcher_priorities;
-
-        let dispatcher_tasks = analysis.sw_tasks_pgroups.iter().map(|(prio, tasks)| {
-            let prio_ty = utils::priority_ty_ident(*prio);
-
-            // generate the branches of the match statement for the dispatcher task
-            let dispatch_match_branches = tasks.iter().map(|task_ident| {
-                let task_static_handle = utils::ident_uppercase(task_ident);
-                let task_inputs_queue = utils::sw_task_inputs_ident(task_ident);
-                let prio_ty = &prio_ty;
-                quote! {
-                #prio_ty::#task_ident => {
-                    let mut input_consumer = #task_inputs_queue.split().1;
-                    let input = input_consumer.dequeue_unchecked();
-                    #task_static_handle.assume_init_mut().exec(input);
-                }
-            }
-            });
-
-            let ready_queue_name = utils::priority_queue_ident(&prio_ty);
-            let ready_queue_size = tasks.len() + 1; // queue size must always be one more than number of tasks
-            let dispatcher_irq_name = dispatchers.get(prio).unwrap(); // safe to unwrap due to guarantees from analysis
-            let dispatcher_priority = prio;
-            let dispatcher_task_ty = utils::dispatcher_ident(*prio);
-
-            quote! {
-            #[derive(Clone, Copy)]
-            #[doc(hidden)]
-            pub enum #prio_ty {
-                #(#tasks,)*
-            }
-
-            #[doc(hidden)]
-            #[allow(non_upper_case_globals)]
-            static mut #ready_queue_name: rtic::export::Queue<#prio_ty, #ready_queue_size> = rtic::export::Queue::new();
-
-            #[doc(hidden)]
-            #[task( binds = #dispatcher_irq_name , priority = #dispatcher_priority )]
-            pub struct #dispatcher_task_ty;
-
-            impl RticTask for #dispatcher_task_ty {
-                fn init() -> Self {
-                    // TODO: here you need to generate:
-                    // - inits for task queues or any MaybeUnit thing related to software tasks
-                    Self
-                }
-
-                fn exec(&mut self) {
-                    unsafe {
-                        let mut ready_consumer = #ready_queue_name.split().1;
-                        while let Some(task) = ready_consumer.dequeue() {
-                            match task {
-                                #(#dispatch_match_branches)*
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        });
-
-        quote! {
-            #(#dispatcher_tasks)*
         }
     }
 
@@ -161,26 +72,144 @@ impl<'a> CodeGen<'a> {
         };
         self.implementation.fill_pend_fn(pend_fn_empty)
     }
+    fn generate_subapps(&mut self) -> TokenStream {
+        let apps = self.app.sub_apps.iter_mut();
+        let analysis = self.analysis.sub_analysis.iter();
+        let pac = &self.app.app_params.device;
+
+        let sub_apps = apps.zip(analysis).map(|(sub_app, sub_analysis)| {
+            // Re-generate the software tasks definitions and generate the spawn() api for each task
+            let sw_tasks = sub_app.sw_tasks.iter_mut().map(|task| {
+                // rename the "sw_task" attribute to "task" so that the standard pass recognizes this as a task
+                for attr in task.task_struct.attrs.iter_mut() {
+                    let path = match &mut attr.meta {
+                        Meta::Path(path) => path,
+                        Meta::List(meta) => &mut meta.path,
+                        Meta::NameValue(meta) => &mut meta.path,
+                    };
+                    if path.is_ident("sw_task") {
+                        path.segments[0].ident = format_ident!("task");
+                        break;
+                    }
+                }
+
+                let task_struct =  &task.task_struct;
+                let task_impl = &task.task_impl;
+                // generate the spawn() function for this software task
+                let dispatcher = sub_analysis.dispatcher_priority_map.get(&task.params.priority).unwrap(); // safe to unwrap
+                let spawn_impl = task.generate_spawn_api(dispatcher, pac);
+
+                quote! {
+                    #task_struct
+                    #task_impl
+                    #spawn_impl
+                }
+            });
+
+            // generate dispatchers as hardware tasks
+            let dispatcher_tasks = generate_dispatcher_tasks(sub_analysis);
+            let core_doc = format!(" Core {}", sub_app.core);
+            quote! {
+                #[doc = " Software tasks of"]
+                #[doc = #core_doc]
+                #(#sw_tasks)*
+
+                #[doc = " Dispatchers of"]
+                #[doc = #core_doc]
+                #dispatcher_tasks
+            }
+        });
+
+        quote! {
+            #(#sub_apps)*
+        }
+    }
+}
+
+/// generates:
+/// - an enum type for each group of tasks of the same priority
+/// - a ready queue for each group of tasks of the same priority
+/// - A dispatcher hw task for each priority level
+fn generate_dispatcher_tasks(sub_analysis: &SubAnalysis) -> TokenStream {
+    let core = sub_analysis.core;
+    let dispatchers = &sub_analysis.dispatcher_priority_map;
+    let dispatcher_tasks = sub_analysis.tasks_priority_map.iter().map(|(prio, tasks)| {
+        let prio_ty = utils::priority_ty_ident(*prio, core);
+
+        // generate the branches of the match statement for the dispatcher task
+        let dispatch_match_branches = tasks.iter().map(|task_ident| {
+            let task_static_handle = utils::ident_uppercase(task_ident);
+            let task_inputs_queue = utils::sw_task_inputs_ident(task_ident);
+            let prio_ty = &prio_ty;
+            quote! {
+                #prio_ty::#task_ident => {
+                    let mut input_consumer = #task_inputs_queue.split().1;
+                    let input = input_consumer.dequeue_unchecked();
+                    #task_static_handle.assume_init_mut().exec(input);
+                }
+            }
+        });
+
+        let ready_queue_name = utils::priority_queue_ident(&prio_ty);
+        let ready_queue_size = tasks.len() + 1; // queue size must always be one more than number of tasks
+        let dispatcher_irq_name = dispatchers.get(prio).unwrap(); // safe to unwrap due to guarantees from analysis
+        let dispatcher_priority = prio;
+        let dispatcher_task_ty = utils::dispatcher_ident(*prio, core);
+        let core_nbr = LitInt::new(&core.to_string(), Span::call_site());
+
+        quote! {
+            #[derive(Clone, Copy)]
+            #[doc(hidden)]
+            pub enum #prio_ty {
+                #(#tasks,)*
+            }
+
+            #[doc(hidden)]
+            #[allow(non_upper_case_globals)]
+            static mut #ready_queue_name: rtic::export::Queue<#prio_ty, #ready_queue_size> = rtic::export::Queue::new();
+
+            #[doc(hidden)]
+            #[task( binds = #dispatcher_irq_name , priority = #dispatcher_priority, core = #core_nbr )]
+            pub struct #dispatcher_task_ty;
+
+            impl RticTask for #dispatcher_task_ty {
+                fn init() -> Self {
+                    // here you can generate initialization for task queues or any MaybeUnit thing related to software tasks
+                    Self
+                }
+
+                fn exec(&mut self) {
+                    unsafe {
+                        let mut ready_consumer = #ready_queue_name.split().1;
+                        while let Some(task) = ready_consumer.dequeue() {
+                            match task {
+                                #(#dispatch_match_branches)*
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    quote! {
+        #(#dispatcher_tasks)*
+    }
 }
 
 pub const PEND_FN_NAME: &str = "__rtic_sc_pend";
 
 impl SoftwareTask {
     /// generate the spawn() function for the task
-    fn generate_spawn_api(&self, app: &ParsedApp, analysis: &AppAnalysis) -> TokenStream {
+    fn generate_spawn_api(&self, dispatcher_irq_name: &Path, peripheral_crate: &Path) -> TokenStream {
         let task_name = self.name();
         let task_inputs_queue = utils::sw_task_inputs_ident(task_name);
         let task_trait_name = format_ident!("{}", SWT_TRAIT_TY);
         // get the inputs type. see the RticSwTask trait to understand this and where it comes from.
         let inputs_ty = quote!(<#task_name as #task_trait_name>::SpawnInput);
-        let user_peripheral_crate = &app.app_params.device;
-        let prio_ty = utils::priority_ty_ident(self.params.priority);
+        let prio_ty = utils::priority_ty_ident(self.params.priority, self.params.core);
         let ready_queue_name = utils::priority_queue_ident(&prio_ty);
 
-        let dispatcher_irq_name = analysis
-            .dispatcher_priorities
-            .get(&self.params.priority)
-            .unwrap(); // safe to unwrap at this point
 
         let pend_fn = format_ident!("{PEND_FN_NAME}");
         let critical_section_fn = format_ident!("{}", rtic_core::rtic_functions::INTERRUPT_FREE_FN);
@@ -199,7 +228,7 @@ impl SoftwareTask {
                         // enqueue task to ready queue
                         unsafe {ready_producer.enqueue_unchecked(#prio_ty::#task_name)};
                         // pend dispatcher
-                        #pend_fn(#user_peripheral_crate::Interrupt::#dispatcher_irq_name as u16);
+                        #pend_fn(#peripheral_crate::Interrupt::#dispatcher_irq_name as u16);
                         Ok(())
                     })
                 }
