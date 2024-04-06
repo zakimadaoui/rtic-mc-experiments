@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use proc_macro2::Span;
-use syn::{Ident, Item, ItemFn, ItemImpl, ItemStruct, ItemUse, spanned::Spanned, Type};
+use syn::{spanned::Spanned, Ident, Item, ItemFn, ItemImpl, ItemStruct, ItemUse, Type};
 
 use ast::*;
 

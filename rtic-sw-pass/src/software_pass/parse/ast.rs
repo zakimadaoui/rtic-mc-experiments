@@ -75,8 +75,9 @@ impl AppParameters {
     }
 }
 
+#[derive(Debug)]
 pub struct SoftwareTask {
-    pub params: SoftwareTaskParams,
+    pub params: TaskParams,
     pub task_struct: ItemStruct,
     pub task_impl: ItemImpl,
 }
@@ -87,12 +88,14 @@ impl SoftwareTask {
     }
 }
 
-pub struct SoftwareTaskParams {
+#[derive(Debug)]
+pub struct TaskParams {
     pub priority: u16,
     pub core: u32,
+    pub spawn_by: u32,
 }
 
-impl SoftwareTaskParams {
+impl TaskParams {
     pub fn from_attr(attr: &RticAttr) -> Self {
         let mut priority = 0;
         if let Some(Expr::Lit(syn::ExprLit {
@@ -109,6 +112,19 @@ impl SoftwareTaskParams {
         {
             core = int.base10_parse().unwrap_or_default();
         }
-        Self { priority, core }
+
+        let mut spawn_by = core; // spawn_by is initially set to be the same core, unless the user chooses otherwize
+        if let Some(Expr::Lit(syn::ExprLit {
+            lit: Lit::Int(int), ..
+        })) = attr.elements.get("spawn_by")
+        {
+            spawn_by = int.base10_parse().unwrap_or_default();
+        }
+
+        Self {
+            priority,
+            core,
+            spawn_by,
+        }
     }
 }

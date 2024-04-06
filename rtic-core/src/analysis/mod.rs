@@ -1,8 +1,8 @@
 use syn::spanned::Spanned;
 
-use crate::App;
 use crate::parser::ast::{HardwareTask, SharedResources};
 use crate::parser::SubApp;
+use crate::App;
 
 pub struct Analysis {
     pub sub_analysis: Vec<SubAnalysis>,

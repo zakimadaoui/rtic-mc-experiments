@@ -32,7 +32,12 @@ impl RticPass for SoftwarePass {
 
 /// Interface for providing the hardware specific details needed by the software pass
 pub trait SoftwarePassImpl {
-    /// Fill the body of the rtic internal pend() function with hardware specific implementation.
-    /// Use [eprintln()] to see the `empty_body_fn` function signature
-    fn fill_pend_fn(&self, empty_body_fn: syn::ItemFn) -> syn::ItemFn;
+    /// Provide the implementation/body of the core local interrupt pending function. (implementation is hardware dependent)
+    /// You can use [eprintln()] to see the `empty_body_fn` function signature
+    fn impl_pend_fn(&self, empty_body_fn: syn::ItemFn) -> syn::ItemFn;
+
+
+    /// (Optionally) Provide the implementation/body of the cross-core interrupt pending function. (implementation is hardware dependent)
+    /// You can use [eprintln()] to see the `empty_body_fn` function signature
+    fn impl_cross_pend_fn(&self, empty_body_fn: syn::ItemFn) -> Option<syn::ItemFn>;
 }

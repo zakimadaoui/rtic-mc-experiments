@@ -1,7 +1,10 @@
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 
-use crate::parser::ast::{HardwareTask, RticTask, SharedResources};
+use crate::{
+    codegen::utils,
+    parser::ast::{HardwareTask, RticTask, SharedResources},
+};
 
 impl RticTask {
     /// Generates task definition, Context struct, resource proxies and binds task to appropriate interrupt
@@ -12,6 +15,7 @@ impl RticTask {
         let task_impl = &self.struct_impl;
         let task_prio_impl = self.generate_priority_func();
         let shared_mod = shared_resources.map(|shared| shared.generate_shared_for_task(self));
+        let current_current_fn = self.generate_current_core_fn();
         quote! {
             //--------------------------------------------------------------------------------------
             static mut #task_static_handle: core::mem::MaybeUninit<#task_ty> = core::mem::MaybeUninit::uninit();
@@ -19,6 +23,7 @@ impl RticTask {
             #task_impl
             #task_prio_impl
             #shared_mod
+            #current_current_fn
         }
     }
 
@@ -35,6 +40,18 @@ impl RticTask {
             impl #task_ty {
                 pub const fn priority() -> u16 {
                     #task_prio
+                }
+            }
+        }
+    }
+
+    fn generate_current_core_fn(&self) -> TokenStream2 {
+        let task_name = self.name();
+        let core_type = utils::core_type(self.args.core);
+        quote! {
+            impl #task_name {
+                const fn current_core() -> #core_type {
+                    unsafe {#core_type::new()}
                 }
             }
         }

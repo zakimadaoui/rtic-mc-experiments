@@ -5,7 +5,7 @@ use std::fs;
 
 use proc_macro2::{Ident, TokenStream as TokenStream2};
 use project_root::get_project_root;
-use syn::{ItemMod, parse_macro_input};
+use syn::{parse_macro_input, ItemMod};
 
 pub use common::rtic_functions;
 pub use common::rtic_traits;
@@ -14,8 +14,8 @@ use crate::analysis::Analysis;
 pub use crate::analysis::SubAnalysis;
 use crate::codegen::CodeGen;
 use crate::parse_utils::RticAttr;
-pub use crate::parser::{App, SubApp};
 pub use crate::parser::ast::AppArgs;
+pub use crate::parser::{App, SubApp};
 
 mod analysis;
 mod codegen;
@@ -23,10 +23,6 @@ mod common;
 pub mod parse_utils;
 
 mod parser;
-
-/** todo:
-* [ ] init context with device and core peripherals
-**/
 
 pub struct RticAppBuilder {
     core: Box<dyn StandardPassImpl>,
@@ -69,9 +65,9 @@ impl RticAppBuilder {
     pub fn build_rtic_application(self, args: TokenStream, input: TokenStream) -> TokenStream {
         // software pass
         let app_module = if let Some(ref sw_pass) = self.sw_pass {
-            let app_attrs = RticAttr::parse_from_tokens(&args.clone().into()).unwrap(); // TODO: cleanup and remove unwraps
-            let code = sw_pass.run_pass(app_attrs, input.into()).unwrap();
-            syn::parse2(code).unwrap()
+            let app_attrs = RticAttr::parse_from_tokens(&args.clone().into()).expect("can't parse attributes"); // TODO: cleanup and remove unwraps
+            let code = sw_pass.run_pass(app_attrs, input.into()).expect("can't run sw pass");
+            syn::parse2(code).expect("can't parse app module")
         } else {
             parse_macro_input!(input as ItemMod)
         };

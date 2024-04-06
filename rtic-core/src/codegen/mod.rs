@@ -10,6 +10,7 @@ use crate::StandardPassImpl;
 
 pub mod hw_task;
 mod shared_resources;
+mod utils;
 
 pub struct CodeGen<'a> {
     app: &'a App,
@@ -119,25 +120,29 @@ impl<'a> CodeGen<'a> {
 
             let interrupt_free = format_ident!("{}", INTERRUPT_FREE_FN);
 
+            let def_core_type = generate_core_type(app.core);
+
             let doc = format!(" CORE {}", app.core);
             quote! {
                 #[doc = " ===================================="]
                 #[doc = #doc]
                 #[doc = " ==================================== "]
-                /// Computed priority Masks
-                #priority_masks
-                /// init task
-                #def_init_task
-                /// idle task
-                #def_idle_task
-                /// define static mut shared resources
+                // define static mut shared resources
                 #def_shared
-                /// proxies for accessing the shared resources
-                #resource_proxies
-                /// define tasks
+                // init task
+                #def_init_task
+                // idle task
+                #def_idle_task
+                // define tasks
                 #(#tasks_def)*
-                /// bind hw tasks to interrupts
+                // bind hw tasks to interrupts
                 #(#hw_tasks_binds)*
+                // proxies for accessing the shared resources
+                #resource_proxies
+                // unique type for the specific sub-app/core
+                #def_core_type
+                // Computed priority Masks
+                #priority_masks
 
                 #[doc = r" Entry of "]
                 #[doc = #doc]
@@ -179,6 +184,29 @@ fn generate_idle_call(idle: Option<&IdleTask>, wfi: Option<TokenStream2>) -> Tok
         quote! {
             loop {
                 #wfi
+            }
+        }
+    }
+}
+
+/// Generates a unique type for some core that is unsafe to create by the uer.
+/// I.e, it will be used for internal purposes so the the user shouldn't attemp to create it
+fn generate_core_type(core: u32) -> TokenStream2 {
+    let core_ty = utils::core_type(core);
+    let innter_core_ty = utils::core_type_inner(core);
+    let mod_core_ty = utils::core_type_mod(core);
+    let doc = format!("Unique type for core {core}");
+
+    quote! {
+        #[doc = #doc]
+        pub use #mod_core_ty::#core_ty;
+        mod #mod_core_ty {
+            struct #innter_core_ty;
+            pub struct #core_ty(#innter_core_ty);
+            impl #core_ty {
+                pub const unsafe fn new() -> Self {
+                    #core_ty(#innter_core_ty)
+                }
             }
         }
     }

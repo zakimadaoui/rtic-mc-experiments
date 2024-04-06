@@ -6,7 +6,7 @@ use crate::software_pass::parse::{App, SWT_TRAIT_TY};
 use crate::SoftwarePassImpl;
 use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote};
-use syn::{parse_quote, ItemFn, Path, Meta, LitInt};
+use syn::{parse_quote, ItemFn, LitInt, Meta, Path};
 
 pub struct CodeGen<'a> {
     app: App,
@@ -31,6 +31,7 @@ impl<'a> CodeGen<'a> {
         // For every sub-application, generate the software tasks and their dispatchers and associated queues and types.
         let sub_apps = self.generate_subapps();
         let pend_fn_def = self.get_pend_fn();
+        let cross_pend_fn_def = self.get_cross_pend_fn();
         let rest_of_code = &self.app.rest_of_code;
         let software_task_trait = format_ident!("{SWT_TRAIT_TY}");
         let sw_task_trait_def = quote! {
@@ -54,12 +55,14 @@ impl<'a> CodeGen<'a> {
                 #sw_task_trait_def
                 /// Core local interrupt pending
                 #pend_fn_def
+                // (optional) Cross Core interrupt pending
+                #cross_pend_fn_def
             }
         }
     }
 
     fn get_pend_fn(&self) -> ItemFn {
-        let pend_fn_ident = format_ident!("{PEND_FN_NAME}");
+        let pend_fn_ident = format_ident!("{SC_PEND_FN_NAME}");
         let pend_fn_empty = parse_quote! {
             #[doc(hidden)]
             #[inline]
@@ -70,16 +73,35 @@ impl<'a> CodeGen<'a> {
                 // NVIC::pend( irq );
             }
         };
-        self.implementation.fill_pend_fn(pend_fn_empty)
+        self.implementation.impl_pend_fn(pend_fn_empty)
     }
+
+    fn get_cross_pend_fn(&self) -> Option<ItemFn> {
+        let pend_fn_ident = format_ident!("{MC_PEND_FN_NAME}");
+        let pend_fn_empty = parse_quote! {
+            #[doc(hidden)]
+            #[inline]
+            pub fn #pend_fn_ident(irq_nbr : u16, core: u32) {
+                // To be implemented by distributor
+                // How do you pend an interrupt on the other core ?
+            }
+        };
+        self.implementation.impl_cross_pend_fn(pend_fn_empty)
+    }
+
     fn generate_subapps(&mut self) -> TokenStream {
         let apps = self.app.sub_apps.iter_mut();
         let analysis = self.analysis.sub_analysis.iter();
         let pac = &self.app.app_params.device;
 
         let sub_apps = apps.zip(analysis).map(|(sub_app, sub_analysis)| {
+            // first merge the multi-core and core local tasks as the same code will be generated for both
+            let tasks_iter = sub_app
+                .sw_tasks
+                .iter_mut()
+                .chain(sub_app.mc_sw_tasks.iter_mut());
             // Re-generate the software tasks definitions and generate the spawn() api for each task
-            let sw_tasks = sub_app.sw_tasks.iter_mut().map(|task| {
+            let sw_tasks = tasks_iter.map(|task| {
                 // rename the "sw_task" attribute to "task" so that the standard pass recognizes this as a task
                 for attr in task.task_struct.attrs.iter_mut() {
                     let path = match &mut attr.meta {
@@ -93,10 +115,13 @@ impl<'a> CodeGen<'a> {
                     }
                 }
 
-                let task_struct =  &task.task_struct;
+                let task_struct = &task.task_struct;
                 let task_impl = &task.task_impl;
                 // generate the spawn() function for this software task
-                let dispatcher = sub_analysis.dispatcher_priority_map.get(&task.params.priority).unwrap(); // safe to unwrap
+                let dispatcher = sub_analysis
+                    .dispatcher_priority_map
+                    .get(&task.params.priority)
+                    .unwrap(); // safe to unwrap
                 let spawn_impl = task.generate_spawn_api(dispatcher, pac);
 
                 quote! {
@@ -137,7 +162,7 @@ fn generate_dispatcher_tasks(sub_analysis: &SubAnalysis) -> TokenStream {
         let prio_ty = utils::priority_ty_ident(*prio, core);
 
         // generate the branches of the match statement for the dispatcher task
-        let dispatch_match_branches = tasks.iter().map(|task_ident| {
+        let dispatch_match_branches = tasks.iter().map(|(task_ident, _)| {
             let task_static_handle = utils::ident_uppercase(task_ident);
             let task_inputs_queue = utils::sw_task_inputs_ident(task_ident);
             let prio_ty = &prio_ty;
@@ -156,6 +181,7 @@ fn generate_dispatcher_tasks(sub_analysis: &SubAnalysis) -> TokenStream {
         let dispatcher_priority = prio;
         let dispatcher_task_ty = utils::dispatcher_ident(*prio, core);
         let core_nbr = LitInt::new(&core.to_string(), Span::call_site());
+        let tasks = tasks.iter().map(|(ident, _span_by)| ident);
 
         quote! {
             #[derive(Clone, Copy)]
@@ -197,11 +223,16 @@ fn generate_dispatcher_tasks(sub_analysis: &SubAnalysis) -> TokenStream {
     }
 }
 
-pub const PEND_FN_NAME: &str = "__rtic_sc_pend";
+pub const SC_PEND_FN_NAME: &str = "__rtic_sc_pend"; // function name for core-local pending
+pub const MC_PEND_FN_NAME: &str = "__rtic_mc_pend"; // function name for cross-core pending
 
 impl SoftwareTask {
     /// generate the spawn() function for the task
-    fn generate_spawn_api(&self, dispatcher_irq_name: &Path, peripheral_crate: &Path) -> TokenStream {
+    fn generate_spawn_api(
+        &self,
+        dispatcher_irq_name: &Path,
+        peripheral_crate: &Path,
+    ) -> TokenStream {
         let task_name = self.name();
         let task_inputs_queue = utils::sw_task_inputs_ident(task_name);
         let task_trait_name = format_ident!("{}", SWT_TRAIT_TY);
@@ -210,15 +241,39 @@ impl SoftwareTask {
         let prio_ty = utils::priority_ty_ident(self.params.priority, self.params.core);
         let ready_queue_name = utils::priority_queue_ident(&prio_ty);
 
-
-        let pend_fn = format_ident!("{PEND_FN_NAME}");
         let critical_section_fn = format_ident!("{}", rtic_core::rtic_functions::INTERRUPT_FREE_FN);
 
-        quote! {
+        if self.params.core == self.params.spawn_by {
+            let pend_fn = format_ident!("{SC_PEND_FN_NAME}");
+            quote! {
+                static mut #task_inputs_queue: rtic::export::Queue<#inputs_ty, 2> = rtic::export::Queue::new();
+
+                impl #task_name {
+                    pub fn spawn(input : #inputs_ty) -> Result<(), #inputs_ty> {
+                        let mut inputs_producer = unsafe {#task_inputs_queue.split().0};
+                        let mut ready_producer = unsafe {#ready_queue_name.split().0};
+                        /// need to protect by a critical section due to many producers of different priorities can spawn/enqueue this task
+                        #critical_section_fn(|| -> Result<(), #inputs_ty>  {
+                            // enqueue inputs
+                            inputs_producer.enqueue(input)?;
+                            // enqueue task to ready queue
+                            unsafe {ready_producer.enqueue_unchecked(#prio_ty::#task_name)};
+                            // pend dispatcher
+                            #pend_fn(#peripheral_crate::Interrupt::#dispatcher_irq_name as u16);
+                            Ok(())
+                        })
+                    }
+                }
+            }
+        } else {
+            let spawner_ty = utils::core_type(self.params.spawn_by);
+            let pend_fn = format_ident!("{MC_PEND_FN_NAME}");
+            let core = self.params.core;
+            quote! {
             static mut #task_inputs_queue: rtic::export::Queue<#inputs_ty, 2> = rtic::export::Queue::new();
 
             impl #task_name {
-                pub fn spawn(input : #inputs_ty) -> Result<(), #inputs_ty> {
+                pub fn spawn_from(_spawner: #spawner_ty , input : #inputs_ty) -> Result<(), #inputs_ty> {
                     let mut inputs_producer = unsafe {#task_inputs_queue.split().0};
                     let mut ready_producer = unsafe {#ready_queue_name.split().0};
                     /// need to protect by a critical section due to many producers of different priorities can spawn/enqueue this task
@@ -228,9 +283,10 @@ impl SoftwareTask {
                         // enqueue task to ready queue
                         unsafe {ready_producer.enqueue_unchecked(#prio_ty::#task_name)};
                         // pend dispatcher
-                        #pend_fn(#peripheral_crate::Interrupt::#dispatcher_irq_name as u16);
+                        #pend_fn(#peripheral_crate::Interrupt::#dispatcher_irq_name as u16, #core);
                         Ok(())
                     })
+                    }
                 }
             }
         }

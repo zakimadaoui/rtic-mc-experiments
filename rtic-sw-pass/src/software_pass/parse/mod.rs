@@ -1,4 +1,4 @@
-use crate::parse::ast::{AppParameters, SoftwareTask, SoftwareTaskParams};
+use crate::parse::ast::{AppParameters, SoftwareTask, TaskParams};
 use proc_macro2::Ident;
 use rtic_core::parse_utils::RticAttr;
 use std::collections::HashMap;
@@ -13,7 +13,10 @@ pub const SWT_TRAIT_TY: &str = "RticSwTask";
 pub struct SubApp {
     pub core: u32,
     pub dispatchers: Vec<syn::Path>,
+    /// Single core/ Core-local software tasks
     pub sw_tasks: Vec<SoftwareTask>,
+    /// Multi core/ software tasks to be spawned on this core from other cores
+    pub mc_sw_tasks: Vec<SoftwareTask>,
 }
 
 /// Type to represent an RTIC application (withing software pass context)
@@ -57,6 +60,7 @@ impl App {
 
         let cores = app_params.cores;
         let mut sw_tasks = HashMap::with_capacity(cores as usize);
+        let mut mc_sw_tasks = HashMap::with_capacity(cores as usize);
         for (task_struct, attr_idx) in sw_task_structs {
             let task_impl = sw_task_impls
                 .remove(&task_struct.ident)
@@ -69,25 +73,38 @@ impl App {
                 ))?;
 
             let attrs = RticAttr::parse_from_attr(&task_struct.attrs[attr_idx])?;
-            let params = SoftwareTaskParams::from_attr(&attrs);
+            let params = TaskParams::from_attr(&attrs);
             let task = SoftwareTask {
                 params,
                 task_struct,
                 task_impl,
             };
-            sw_tasks
-                .entry(task.params.core)
-                .or_insert(Vec::new())
-                .push(task);
+
+            if task.params.core == task.params.spawn_by {
+                sw_tasks
+                    .entry(task.params.core)
+                    .or_insert(Vec::new())
+                    .push(task);
+            } else {
+                mc_sw_tasks
+                    .entry(task.params.core)
+                    .or_insert(Vec::new())
+                    .push(task);
+            }
         }
 
         let mut sub_apps = Vec::with_capacity(cores as usize);
         for core in 0..cores {
-            let dispatchers = app_params.dispatchers.get(&core).cloned().unwrap_or_default();
+            let dispatchers = app_params
+                .dispatchers
+                .get(&core)
+                .cloned()
+                .unwrap_or_default();
             sub_apps.push(SubApp {
                 core,
                 dispatchers,
                 sw_tasks: sw_tasks.remove(&core).unwrap_or_default(),
+                mc_sw_tasks: mc_sw_tasks.remove(&core).unwrap_or_default(),
             })
         }
 

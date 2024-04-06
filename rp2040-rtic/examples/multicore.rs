@@ -5,7 +5,7 @@
 #[used]
 pub static BOOT2: [u8; 256] = rp2040_boot2::BOOT_LOADER_GENERIC_03H;
 
-#[rtic::app(device=rp2040_hal::pac, peripherals=false, dispatchers=[[DMA_IRQ_0], [DMA_IRQ_1]], cores = 2)]
+#[rtic::app(device=rp2040_hal::pac, peripherals=false, dispatchers=[[DMA_IRQ_0], [DMA_IRQ_1, I2C1_IRQ]], cores = 2)]
 pub mod my_app {
 
     use cortex_m::asm;
@@ -135,6 +135,9 @@ pub mod my_app {
             if let Err(_e) = MyTask7::spawn(input + 10) {
                 error!("couldn't spawn task 7")
             }
+
+            let _allowed_spawn = CrossCoreTask::spawn_from(Self::current_core(), 1);
+
         }
     }
 
@@ -206,13 +209,15 @@ pub mod my_app {
                 error!("couldn't spawn software task on core {} for the first time", cpu_id)
             }
 
+            let _a = Self::current_core();
+
             if let Err(_e) = MyCore1SwTask::spawn(()) {
                 error!("couldn't spawn software task on core {} for the second time", cpu_id)
             }
         }
     }
 
-    #[sw_task(priority = 1, core = 1)]
+    #[sw_task(priority = 2, core = 1)]
     struct MyCore1SwTask;
     impl RticSwTask for MyCore1SwTask {
         type SpawnInput = ();
@@ -224,7 +229,25 @@ pub mod my_app {
         fn exec(&mut self, _input: ()) {
             let cpu_id = unsafe { pac::Peripherals::steal().SIO.cpuid.read().bits() };
             info!("executing software task from core {}", cpu_id);
+
+            // un-comment to see how this will fail
+            // let _not_allowed_spawn = CrossCoreTask::spawn_from(Self::current_core(), 1);
         }
     }
 
+
+    #[sw_task(priority = 1, core = 1, spawn_by = 0)]
+    pub struct CrossCoreTask;
+    impl RticSwTask for CrossCoreTask {
+        type SpawnInput = u32;
+
+        fn init() -> Self {
+            Self
+        }
+
+        fn exec(&mut self, _input: u32) {
+            let cpu_id = unsafe { pac::Peripherals::steal().SIO.cpuid.read().bits() };
+            info!("executing cross core software task from core {}", cpu_id);
+        }
+    }
 }

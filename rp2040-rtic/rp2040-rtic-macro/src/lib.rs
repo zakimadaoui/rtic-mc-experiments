@@ -148,7 +148,8 @@ impl StandardPassImpl for Rp2040Rtic {
 
 struct SwPassBackend;
 impl SoftwarePassImpl for SwPassBackend {
-    fn fill_pend_fn(&self, mut empty_body_fn: ItemFn) -> ItemFn {
+    /// Provide the implementation/body of the core local interrupt pending function.
+    fn impl_pend_fn(&self, mut empty_body_fn: ItemFn) -> ItemFn {
         let body = parse_quote!({
             // taken from cortex-m implementation
             unsafe {
@@ -158,6 +159,15 @@ impl SoftwarePassImpl for SwPassBackend {
         });
         empty_body_fn.block = Box::new(body);
         empty_body_fn
+    }
+
+    /// Provide the implementation/body of the core local interrupt pending function.
+    fn impl_cross_pend_fn(&self, mut empty_body_fn: ItemFn) -> Option<ItemFn> {
+        let body = parse_quote!({
+            // TODO
+        });
+        empty_body_fn.block = Box::new(body);
+        Some(empty_body_fn)
     }
 }
 

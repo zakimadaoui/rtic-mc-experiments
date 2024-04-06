@@ -1,11 +1,11 @@
-#### POTENTIAL Multi-core RTIC application declarative model
+#### Multi-core RTIC application declarative model
 
 ```rust
 
 #[rp2040_rtic::app(
     device=rp2040_hal::pac,
     cores=2,
-    dispatchers=[[/*dispatchers for core 1*/], [/*dispatchers for core 2*/]]
+    dispatchers=[[/*dispatchers for core 1*/], [/*dispatchers for core 2*/], ..]
     ),
 ]
 pub mod my_multicore_core_app {
@@ -63,17 +63,18 @@ pub mod my_multicore_core_app {
         fn init() -> Self { Self { /* init local resources */ } }
         fn exec(&mut self) { 
             /* task code ... */ 
-            if let Err(val, reason) =  Core2SwTask::spawn(7, CURRENT_CORE) {
+            if let Err(val, reason) =  Core2SwTask::spawn_from(self.current_core(), 7) {
                 // do something on error case,
                 // reason could be that task is spawned from incorrect core.
             }
-            // NOTE: CURRENT_CORE is an auto generated constant used to validate that the correct 
-            // core is used to spawn the task.
+            // self.current_core() returns a constant, zero-cost type for Core 1 that allows
+            // static analysis to inforce the fact that only Core 1 can spawn this task on Core 2
          }
     }
     
-    /// Software task assigned to core 2 (becaused it uses shared3 resource) to be spawned by core 1
-    #[task(priority = 1, shared = [shared3], spawned_by = 1)]
+    /// Software task to be spawned by core 1 on core 2  
+    /// this task is automatically assinged to core 2 becaused it uses shared3 resource
+    #[task(priority = 1, shared = [shared3], spawn_by = 1)]
     struct Core2SwTask {
         /* local resources */
     }
@@ -106,6 +107,7 @@ For the sake of sipmilification, let's assume that we have a dual core system (b
   - tasks that are spawned locally (local core message passing)
   - tasks that are spawned by the other core (cross-core message passing in One Direction)
   - and it is **forbidden** to have a dispatcher that sevrves both the above purposes due to race conditions
+- In addition, cross-core tasks in the same priority group must all have the spawn_by index. I,e a dispatcher for cross core tasks can only serve one SPAWNER core.
 
 The above Constraints will be inforced at compile time and violations will be detected during the analysis phase.
 
@@ -121,18 +123,23 @@ The above Constraints will be inforced at compile time and violations will be de
 
 ### Open questions about Multi-core pass and some answers
 
-1. how to initialize the other core ? knowing that some architectures allow core A to start core B while others don't
-   - a solution could be to use post-init of core 1 to init core 2
-2. how to partition code into different RAM sections
-   - a solution could be to add  #[linker_section = ".text.coreX.context"] and context can be (globals, isr, task, ...). then use a custom linker script provided with the distribution 
-3. What should a multi-core pass do ? 
-   - partition code into different ram sections ?
-   - split single app to multiple app modules ?
-   - how cross-pend pending is used and how does this affect software tasks pass ?
-   - how the analysis to guarantee spawning is done correctly will be done ?
-   - How to have two or more Main functions ?
-     - hardware pass needs to know which main function each core uses since it needs to make calls to init, pre-init and idle code in
-     - how to know the entry of the other core !?
-   - how and when to use `cross-pend()` and when to `pend()`
-4. is a multi-core pass is enough or do other passes (hadware and software pass especially) need to change behavior to expect multi-core code ?
+#### Solved problems so far
 
+1. how to initialize the other core ? knowing that some architectures allow core A to start core B while others don't
+   - solution: use post-init of core 1 to init core 2 (tested and already works)
+2. Should there be multi-core pass ? or should the standard pass, software pass be re-factored to be generic enought to fit multicore applications. 
+   1. from experiments, the second option seems to be the most viable. in addition, an extra compilation pass can be added to perform automatic task assignment to cores (but can't call this multi-core task)
+
+3. how to analyse multi-core application and have certain guarantees that spawning is done correctly (i,e no undefined behavior is allowed and no situtation that leads to race conditions)?
+   1. -> already solved, see implementation of sw pass and standard pass (analysis part mostly)
+
+4. How to have two or more Main functions ?
+  - sol -> standard pass generates multiple entry functions (one entry for each core) and the distribution has some API to give names to the entries (on rp2040 rtic, we name the first entry `main` and the second entry some random name like `core1_entry`)
+5. how and when to use `cross-pend()` and when to `pend()`
+   - sol -> compare spawn_by vs core argument of software task
+
+#### Yet to be solved 
+
+1. How to partition code into different ram sections ? What convensions need to be followed on each compilation pass implementation to allow such thing ?
+   - a solution could be to add  #[linker_section = ".text.coreX.context"] and context can be (globals, isr, task, ...). then use a custom linker script provided with the distribution. But all compilation passes have to conform to this practice or we get a broken application. In addition a linker script is needed for each distribution
+2. How allow compiling a single source application to multiple binaries (for multic-core MCUs that require multi-binaries like the stm32h7 series) ?
