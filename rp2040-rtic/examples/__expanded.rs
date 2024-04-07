@@ -176,7 +176,8 @@ pub mod my_app
             [usize :: from(irq_nbr / 32)].write(1 << (irq_nbr % 32))
         }
     } #[doc(hidden)] #[inline] pub fn
-    __rtic_mc_pend(irq_nbr : u16, core : u32) {}
+    __rtic_mc_pend(irq_nbr : u16, core : u32)
+    { rtic :: export :: cross_core :: pend_irq(irq_nbr) ; }
     #[doc = " ===================================="] #[doc = " CORE 0"]
     #[doc = " ==================================== "] static mut
     SHARED_RESOURCES : core :: mem :: MaybeUninit < SharedResources > = core
@@ -205,7 +206,7 @@ pub mod my_app
     {
         fn init() -> Self { Self { count : 0 } } fn exec(& mut self) ->!
         { loop { self.count += 1 ; asm :: delay(120000000) ; } }
-    } impl MyIdleTask { pub const fn priority() -> u16 { 0u16 } } impl
+    } impl MyIdleTask { pub const fn priority() -> u16 { 3u16 } } impl
     MyIdleTask
     {
         const fn current_core() -> __rtic__internal__Core0
@@ -443,8 +444,21 @@ pub mod my_app
                 CORE0_PRIORITY2_DISPATCHER.write(Core0Priority2Dispatcher ::
                 init()) ;
             } let shared_resources = init_core0() ; unsafe
-            { SHARED_RESOURCES.write(shared_resources) ; }
-            #[doc = r" Stack for core 1"] #[doc = r""]
+            { SHARED_RESOURCES.write(shared_resources) ; } unsafe
+            {
+                rp2040_hal :: pac :: CorePeripherals ::
+                steal().NVIC.set_priority(rp2040_hal :: pac :: Interrupt ::
+                TIMER_IRQ_0, 3u16 as u8) ; rp2040_hal :: pac :: NVIC ::
+                unmask(rp2040_hal :: pac :: Interrupt :: TIMER_IRQ_0) ;
+                rp2040_hal :: pac :: CorePeripherals ::
+                steal().NVIC.set_priority(rp2040_hal :: pac :: Interrupt ::
+                TIMER_IRQ_2, 1u16 as u8) ; rp2040_hal :: pac :: NVIC ::
+                unmask(rp2040_hal :: pac :: Interrupt :: TIMER_IRQ_2) ;
+                rp2040_hal :: pac :: CorePeripherals ::
+                steal().NVIC.set_priority(rp2040_hal :: pac :: Interrupt ::
+                DMA_IRQ_0, 2u16 as u8) ; rp2040_hal :: pac :: NVIC ::
+                unmask(rp2040_hal :: pac :: Interrupt :: DMA_IRQ_0) ;
+            } #[doc = r" Stack for core 1"] #[doc = r""]
             #[doc =
             r" Core 0 gets its stack via the normal route - any memory not used by static values is"]
             #[doc = r" reserved for stack and initialised by cortex-m-rt."]
@@ -468,22 +482,16 @@ pub mod my_app
             core1.spawn(unsafe { & mut CORE1_STACK.mem }, move ||
             core1_entry()) ; unsafe
             {
+                let sio = unsafe { & (* rp2040_hal :: pac :: SIO :: PTR) } ;
+                while sio.fifo_st.read().vld().bit()
+                { let _ = sio.fifo_rd.read() ; }
+                sio.fifo_st.write(| wr | wr.bits(0xff)) ; rp2040_hal :: pac ::
+                NVIC ::
+                unpend(rp2040_hal :: pac :: Interrupt :: SIO_IRQ_PROC0) ;
                 rp2040_hal :: pac :: CorePeripherals ::
                 steal().NVIC.set_priority(rp2040_hal :: pac :: Interrupt ::
-                TIMER_IRQ_0, 3u16 as u8) ; rp2040_hal :: pac :: NVIC ::
-                unmask(rp2040_hal :: pac :: Interrupt :: TIMER_IRQ_0) ;
-            } unsafe
-            {
-                rp2040_hal :: pac :: CorePeripherals ::
-                steal().NVIC.set_priority(rp2040_hal :: pac :: Interrupt ::
-                TIMER_IRQ_2, 1u16 as u8) ; rp2040_hal :: pac :: NVIC ::
-                unmask(rp2040_hal :: pac :: Interrupt :: TIMER_IRQ_2) ;
-            } unsafe
-            {
-                rp2040_hal :: pac :: CorePeripherals ::
-                steal().NVIC.set_priority(rp2040_hal :: pac :: Interrupt ::
-                DMA_IRQ_0, 2u16 as u8) ; rp2040_hal :: pac :: NVIC ::
-                unmask(rp2040_hal :: pac :: Interrupt :: DMA_IRQ_0) ;
+                SIO_IRQ_PROC0, 0u16 as u8) ; rp2040_hal :: pac :: NVIC ::
+                unmask(rp2040_hal :: pac :: Interrupt :: SIO_IRQ_PROC0) ;
             }
         }) ; let mut my_idle_task = MyIdleTask :: init() ; my_idle_task.exec()
         ;
@@ -664,18 +672,26 @@ pub mod my_app
                 steal().NVIC.set_priority(rp2040_hal :: pac :: Interrupt ::
                 TIMER_IRQ_1, 2u16 as u8) ; rp2040_hal :: pac :: NVIC ::
                 unmask(rp2040_hal :: pac :: Interrupt :: TIMER_IRQ_1) ;
-            } unsafe
-            {
                 rp2040_hal :: pac :: CorePeripherals ::
                 steal().NVIC.set_priority(rp2040_hal :: pac :: Interrupt ::
                 I2C1_IRQ, 2u16 as u8) ; rp2040_hal :: pac :: NVIC ::
                 unmask(rp2040_hal :: pac :: Interrupt :: I2C1_IRQ) ;
-            } unsafe
-            {
                 rp2040_hal :: pac :: CorePeripherals ::
                 steal().NVIC.set_priority(rp2040_hal :: pac :: Interrupt ::
                 DMA_IRQ_1, 1u16 as u8) ; rp2040_hal :: pac :: NVIC ::
                 unmask(rp2040_hal :: pac :: Interrupt :: DMA_IRQ_1) ;
+            } unsafe
+            {
+                let sio = unsafe { & (* rp2040_hal :: pac :: SIO :: PTR) } ;
+                while sio.fifo_st.read().vld().bit()
+                { let _ = sio.fifo_rd.read() ; }
+                sio.fifo_st.write(| wr | wr.bits(0xff)) ; rp2040_hal :: pac ::
+                NVIC ::
+                unpend(rp2040_hal :: pac :: Interrupt :: SIO_IRQ_PROC1) ;
+                rp2040_hal :: pac :: CorePeripherals ::
+                steal().NVIC.set_priority(rp2040_hal :: pac :: Interrupt ::
+                SIO_IRQ_PROC1, 0u16 as u8) ; rp2040_hal :: pac :: NVIC ::
+                unmask(rp2040_hal :: pac :: Interrupt :: SIO_IRQ_PROC1) ;
             }
         }) ; loop { unsafe { core :: arch :: asm! ("wfi") ; } }
     }

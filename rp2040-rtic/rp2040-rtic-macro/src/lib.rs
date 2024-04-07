@@ -1,9 +1,7 @@
 use proc_macro::TokenStream;
 use proc_macro2::{Ident, TokenStream as TokenStream2};
 use quote::{format_ident, quote};
-use rtic_core::{
-    SubAnalysis, AppArgs, CompilationPass, RticAppBuilder, SubApp, StandardPassImpl,
-};
+use rtic_core::{AppArgs, CompilationPass, RticAppBuilder, StandardPassImpl, SubAnalysis, SubApp};
 use syn::{parse_quote, ItemFn};
 
 extern crate proc_macro;
@@ -11,6 +9,9 @@ extern crate proc_macro;
 struct Rp2040Rtic;
 
 use rtic_sw_pass::{SoftwarePass, SoftwarePassImpl};
+
+const MIN_TASK_PRIORITY: u16 = 3;
+const MAX_TASK_PRIORITY: u16 = 0;
 
 #[proc_macro_attribute]
 pub fn app(args: TokenStream, input: TokenStream) -> TokenStream {
@@ -23,23 +24,20 @@ pub fn app(args: TokenStream, input: TokenStream) -> TokenStream {
 }
 
 impl StandardPassImpl for Rp2040Rtic {
+    fn default_task_priority(&self) -> u16 {
+        MIN_TASK_PRIORITY
+    }
     fn post_init(
         &self,
         app_args: &AppArgs,
-        app_info: &SubApp,
+        sub_app: &SubApp,
         app_analysis: &SubAnalysis,
     ) -> Option<TokenStream2> {
-        // initialize core 1 from core 0 if the application is for multicore (cores > 1)
-        let core1_init = if app_info.core == 0 && app_args.cores > 1 {
-            Some(init_core1(app_args))
-        } else {
-            None
-        };
-
         let peripheral_crate = &app_args.device;
-        let inits = app_analysis.used_irqs.iter().map(|(irq_name, priority)| {
-            quote! {
-                unsafe {
+        let initialize_dispatcher_interrupts =
+            app_analysis.used_irqs.iter().map(|(irq_name, priority)| {
+                let priority = priority.min(&MIN_TASK_PRIORITY); // limit piority to minmum
+                quote! {
                     //set interrupt priority
                     #peripheral_crate::CorePeripherals::steal()
                         .NVIC
@@ -47,11 +45,30 @@ impl StandardPassImpl for Rp2040Rtic {
                     //unmask interrupt
                     #peripheral_crate::NVIC::unmask(#peripheral_crate::Interrupt::#irq_name);
                 }
-            }
-        });
+            });
+
+        // initialize core 1 from core 0 if the application is for multicore (cores > 1)
+        let init_and_spawn_core1 = if sub_app.core == 0 && app_args.cores > 1 {
+            Some(init_core1(app_args))
+        } else {
+            None
+        };
+
+        let configure_fifo = if app_args.cores > 1 {
+            Some(configure_fifo(app_args, sub_app.core))
+        } else {
+            None
+        };
+
         Some(quote! {
-            #core1_init
-            #(#inits)*
+            unsafe {
+                #(#initialize_dispatcher_interrupts)*
+            }
+            // init and spawn core 1 (if app.core == 0 and app_args.cores == 2 )
+            #init_and_spawn_core1
+
+            // configure fifo (if app_args.cores == 2 )
+            #configure_fifo
         })
     }
 
@@ -164,7 +181,7 @@ impl SoftwarePassImpl for SwPassBackend {
     /// Provide the implementation/body of the core local interrupt pending function.
     fn impl_cross_pend_fn(&self, mut empty_body_fn: ItemFn) -> Option<ItemFn> {
         let body = parse_quote!({
-            // TODO
+            rtic::export::cross_core::pend_irq(irq_nbr);
         });
         empty_body_fn.block = Box::new(body);
         Some(empty_body_fn)
@@ -194,5 +211,28 @@ fn init_core1(app_info: &AppArgs) -> TokenStream2 {
         let cores = mc.cores();
         let core1 = &mut cores[1];
         let _ = core1.spawn(unsafe { &mut CORE1_STACK.mem }, move || core1_entry());
+    }
+}
+
+fn configure_fifo(app_info: &AppArgs, core: u32) -> TokenStream2 {
+    let peripheral_crate = &app_info.device;
+    #[allow(non_snake_case)]
+    let SIO_IRQ_PROC = format_ident!("SIO_IRQ_PROC{core}");
+    quote! {
+        unsafe {
+            let sio = unsafe { &(*rp2040_hal::pac::SIO::PTR) };
+            // drain fifo
+            while sio.fifo_st.read().vld().bit() {
+                let _ = sio.fifo_rd.read();
+            }
+            // clear status bits and unpend the FIFO interrupt
+            sio.fifo_st.write(|wr| wr.bits(0xff) );
+            #peripheral_crate::NVIC::unpend( #peripheral_crate::Interrupt::#SIO_IRQ_PROC);
+            // Set FIFO0 interrupts priority to MAX priority
+            #peripheral_crate::CorePeripherals::steal()
+                .NVIC.set_priority( #peripheral_crate::Interrupt::#SIO_IRQ_PROC, #MAX_TASK_PRIORITY as u8);
+            // unmask FIFO irq
+            #peripheral_crate::NVIC::unmask( #peripheral_crate::Interrupt::#SIO_IRQ_PROC);
+        }
     }
 }

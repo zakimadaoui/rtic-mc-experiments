@@ -2,6 +2,8 @@ extern crate proc_macro;
 
 use proc_macro::TokenStream;
 use std::fs;
+use std::sync::atomic::AtomicU16;
+use std::sync::atomic::Ordering;
 
 use proc_macro2::{Ident, TokenStream as TokenStream2};
 use project_root::get_project_root;
@@ -23,6 +25,8 @@ mod common;
 pub mod parse_utils;
 
 mod parser;
+
+static DEFAULT_TASK_PRIORITY: AtomicU16 = AtomicU16::new(0);
 
 pub struct RticAppBuilder {
     core: Box<dyn StandardPassImpl>,
@@ -63,10 +67,16 @@ impl RticAppBuilder {
     }
 
     pub fn build_rtic_application(self, args: TokenStream, input: TokenStream) -> TokenStream {
+        // init statics
+        DEFAULT_TASK_PRIORITY.store(self.core.default_task_priority(), Ordering::Relaxed);
+
         // software pass
         let app_module = if let Some(ref sw_pass) = self.sw_pass {
-            let app_attrs = RticAttr::parse_from_tokens(&args.clone().into()).expect("can't parse attributes"); // TODO: cleanup and remove unwraps
-            let code = sw_pass.run_pass(app_attrs, input.into()).expect("can't run sw pass");
+            let app_attrs =
+                RticAttr::parse_from_tokens(&args.clone().into()).expect("can't parse attributes"); // TODO: cleanup and remove unwraps
+            let code = sw_pass
+                .run_pass(app_attrs, input.into())
+                .expect("can't run sw pass");
             syn::parse2(code).expect("can't parse app module")
         } else {
             parse_macro_input!(input as ItemMod)
@@ -167,4 +177,6 @@ pub trait StandardPassImpl {
 
     /// Entry name for specific core
     fn entry_name(&self, core: u32) -> Ident;
+
+    fn default_task_priority(&self) -> u16;
 }

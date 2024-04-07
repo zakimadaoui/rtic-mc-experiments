@@ -1,3 +1,5 @@
+use std::sync::atomic::Ordering;
+
 use heck::ToSnakeCase;
 use proc_macro2::Span;
 use quote::ToTokens;
@@ -5,6 +7,8 @@ use syn::{
     parse::Parser, spanned::Spanned, Expr, ExprArray, Ident, ItemFn, ItemImpl, ItemStruct, LitInt,
     Meta,
 };
+
+use crate::DEFAULT_TASK_PRIORITY;
 
 #[derive(Debug)]
 pub struct InitTask {
@@ -44,7 +48,7 @@ impl InitTaskArgs {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct TaskArgs {
     pub interrupt_handler_name: Option<syn::Ident>,
     pub priority: u16,
@@ -56,7 +60,12 @@ pub struct TaskArgs {
 impl TaskArgs {
     pub fn parse(args: Meta) -> syn::Result<Self> {
         let Meta::List(args) = args else {
-            return Ok(TaskArgs::default());
+            return Ok(TaskArgs {
+                interrupt_handler_name: None,
+                priority: DEFAULT_TASK_PRIORITY.load(Ordering::Relaxed),
+                shared_idents: Default::default(),
+                core: 0,
+            });
         };
 
         let mut interrupt_handler_name: Option<syn::Path> = None;
@@ -86,7 +95,7 @@ impl TaskArgs {
 
         let priority = priority
             .and_then(|p| p.base10_parse().ok())
-            .unwrap_or_default();
+            .unwrap_or(DEFAULT_TASK_PRIORITY.load(Ordering::Relaxed));
 
         let core = core
             .and_then(|core| core.base10_parse().ok())
@@ -112,11 +121,10 @@ impl TaskArgs {
     }
 }
 
-/// Alias for hardware task. The constructor of this type must guarantee that this task
-/// is bound to an interrupt handler. i.e. the `interrupt_handler_name` in `args` should not be None
+/// Alias for hardware task
 pub type HardwareTask = RticTask;
 
-/// Alias for software tasks. Software task have `interrupt_handler_name` set to None and priority 0
+/// Alias for idle tasks. idle task has `interrupt_handler_name` set to None and priority 0
 pub type IdleTask = RticTask;
 
 #[derive(Debug)]

@@ -1,10 +1,10 @@
 // Note: most of the code here is taken from rtic repo
 #![allow(clippy::inline_always)]
 
+pub use rp2040_hal::multicore::{Multicore, Stack};
+pub use rp2040_hal::sio::Sio;
 /// Distribution crate must re-export the `export` module from all the used compilation passes
 pub use rtic_sw_pass::export::*;
-pub use rp2040_hal::sio::Sio;
-pub use rp2040_hal::multicore::{Multicore, Stack};
 
 pub use cortex_m::{
     asm::nop,
@@ -204,4 +204,46 @@ pub const fn compute_mask_chunks<const L: usize>(ids: [u32; L]) -> usize {
         }
     }
     (max + 32) / 32
+}
+
+/// Cross pending interrupts
+pub mod cross_core {
+
+    #[inline]
+    pub fn pend_irq(irq: u16) {
+        cortex_m::interrupt::free(|_| unsafe {
+            let sio = &(*rp2040_hal::pac::SIO::PTR);
+            sio.fifo_wr.write(|wr|  wr.bits(irq as u32));
+        });
+    }
+
+    pub fn get_pended_irq() -> Option<rp2040_hal::pac::Interrupt> {
+        let sio = unsafe { &(*rp2040_hal::pac::SIO::PTR) };
+        if sio.fifo_st.read().vld().bit() {
+            let irq = sio.fifo_rd.read().bits() as u16;
+            // implementation must guarantee that the only messages passed in the fifo are of pac::Interrupt type.
+            let irq = unsafe { core::mem::transmute(irq) };
+            Some(irq)
+        } else {
+            None
+        }
+    }
+}
+
+#[no_mangle]
+#[allow(non_snake_case)]
+fn SIO_IRQ_PROC0() {
+    if let Some(signal) = cross_core::get_pended_irq() {
+        // info!("SIO_IRQ_PROC0: forwarding irq {}", signal as u16);
+        NVIC::pend(signal);
+    }
+}
+
+#[no_mangle]
+#[allow(non_snake_case)]
+fn SIO_IRQ_PROC1() {
+    if let Some(signal) = cross_core::get_pended_irq() {
+        // info!("SIO_IRQ_PROC1: forwarding irq {}", signal as u16);
+        NVIC::pend(signal);
+    }
 }

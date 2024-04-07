@@ -137,6 +137,9 @@ The above Constraints will be inforced at compile time and violations will be de
   - sol -> standard pass generates multiple entry functions (one entry for each core) and the distribution has some API to give names to the entries (on rp2040 rtic, we name the first entry `main` and the second entry some random name like `core1_entry`)
 5. how and when to use `cross-pend()` and when to `pend()`
    - sol -> compare spawn_by vs core argument of software task
+6. where and how to initialize mailboxes
+   1. sol -> rtic-core already provides `post_init()` API which can be also used for initializing the mailboxes on both cores.
+
 
 #### Yet to be solved 
 

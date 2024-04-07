@@ -36,7 +36,6 @@ pub trait SoftwarePassImpl {
     /// You can use [eprintln()] to see the `empty_body_fn` function signature
     fn impl_pend_fn(&self, empty_body_fn: syn::ItemFn) -> syn::ItemFn;
 
-
     /// (Optionally) Provide the implementation/body of the cross-core interrupt pending function. (implementation is hardware dependent)
     /// You can use [eprintln()] to see the `empty_body_fn` function signature
     fn impl_cross_pend_fn(&self, empty_body_fn: syn::ItemFn) -> Option<syn::ItemFn>;

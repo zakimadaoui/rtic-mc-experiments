@@ -87,7 +87,10 @@ pub mod my_app {
     }
     impl RticTask for MyTask {
         fn init() -> Self {
-            Self { is_high: false , counter : 0}
+            Self {
+                is_high: false,
+                counter: 0,
+            }
         }
 
         fn exec(&mut self) {
@@ -101,7 +104,7 @@ pub mod my_app {
                 }
             });
 
-            self.counter+=1;
+            self.counter += 1;
             let message = self.counter;
             if let Err(_e) = MyTask2::spawn(message) {
                 error!("couldn't spawn task 2 for the first time ")
@@ -128,7 +131,7 @@ pub mod my_app {
         fn exec(&mut self, input: u16) {
             info!("task2 spawned with input {}", input);
 
-            if let Err(_e) = MyTask7::spawn(input+10) {
+            if let Err(_e) = MyTask7::spawn(input + 10) {
                 error!("couldn't spawn task 7")
             }
         }

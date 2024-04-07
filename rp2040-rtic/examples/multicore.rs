@@ -137,7 +137,6 @@ pub mod my_app {
             }
 
             let _allowed_spawn = CrossCoreTask::spawn_from(Self::current_core(), 1);
-
         }
     }
 
@@ -184,7 +183,6 @@ pub mod my_app {
         }
     }
 
-
     //============================================= Second core ===================================
 
     #[init(core = 1)]
@@ -206,13 +204,19 @@ pub mod my_app {
             info!("executing task from core {}", cpu_id);
 
             if let Err(_e) = MyCore1SwTask::spawn(()) {
-                error!("couldn't spawn software task on core {} for the first time", cpu_id)
+                error!(
+                    "couldn't spawn software task on core {} for the first time",
+                    cpu_id
+                )
             }
 
             let _a = Self::current_core();
 
             if let Err(_e) = MyCore1SwTask::spawn(()) {
-                error!("couldn't spawn software task on core {} for the second time", cpu_id)
+                error!(
+                    "couldn't spawn software task on core {} for the second time",
+                    cpu_id
+                )
             }
         }
     }
@@ -234,7 +238,6 @@ pub mod my_app {
             // let _not_allowed_spawn = CrossCoreTask::spawn_from(Self::current_core(), 1);
         }
     }
-
 
     #[sw_task(priority = 1, core = 1, spawn_by = 0)]
     pub struct CrossCoreTask;
