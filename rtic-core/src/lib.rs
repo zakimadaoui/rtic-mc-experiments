@@ -1,12 +1,10 @@
 extern crate proc_macro;
 
 use proc_macro::TokenStream;
-use std::fs;
 use std::sync::atomic::AtomicU16;
 use std::sync::atomic::Ordering;
 
 use proc_macro2::{Ident, TokenStream as TokenStream2};
-use project_root::get_project_root;
 use syn::{parse_macro_input, ItemMod};
 
 pub use common::rtic_functions;
@@ -15,7 +13,6 @@ pub use common::rtic_traits;
 use crate::analysis::Analysis;
 pub use crate::analysis::SubAnalysis;
 use crate::codegen::CodeGen;
-use crate::parse_utils::RticAttr;
 pub use crate::parser::ast::AppArgs;
 pub use crate::parser::{App, SubApp};
 
@@ -36,7 +33,11 @@ pub struct RticAppBuilder {
     other_passes: Vec<Box<dyn RticPass>>,
 }
 pub trait RticPass {
-    fn run_pass(&self, params: RticAttr, app_mod: TokenStream2) -> syn::Result<TokenStream2>;
+    fn run_pass(
+        &self,
+        args: TokenStream2,
+        app_mod: ItemMod,
+    ) -> syn::Result<(TokenStream2, ItemMod)>;
 }
 
 pub enum CompilationPass {
@@ -70,20 +71,31 @@ impl RticAppBuilder {
         // init statics
         DEFAULT_TASK_PRIORITY.store(self.core.default_task_priority(), Ordering::Relaxed);
 
+        let mut args = TokenStream2::from(args);
+        let mut app_mod = parse_macro_input!(input as ItemMod);
+
+        // Run extra passes first in the order of their insertion
+        for pass in self.other_passes {
+            let (out_args, out_mod) = match pass.run_pass(args, app_mod) {
+                Ok(out) => out,
+                Err(e) => return e.to_compile_error().into(),
+            };
+            app_mod = out_mod;
+            args = out_args;
+        }
+
         // software pass
-        let app_module = if let Some(ref sw_pass) = self.sw_pass {
-            let app_attrs =
-                RticAttr::parse_from_tokens(&args.clone().into()).expect("can't parse attributes"); // TODO: cleanup and remove unwraps
-            let code = sw_pass
-                .run_pass(app_attrs, input.into())
-                .expect("can't run sw pass");
-            syn::parse2(code).expect("can't parse app module")
+        let (args, app_mod) = if let Some(ref sw_pass) = self.sw_pass {
+            match sw_pass.run_pass(args, app_mod) {
+                Ok(out) => out,
+                Err(e) => return e.to_compile_error().into(),
+            }
         } else {
-            parse_macro_input!(input as ItemMod)
+            (args, app_mod)
         };
 
         // standard pass
-        let mut parsed_app = match App::parse(app_module.clone(), args.into()) {
+        let mut parsed_app = match App::parse(args, app_mod) {
             Ok(parsed) => parsed,
             Err(e) => return e.to_compile_error().into(),
         };
@@ -102,12 +114,14 @@ impl RticAppBuilder {
 
         let code = CodeGen::new(self.core.as_ref(), &parsed_app, &analysis).run();
 
-        if let Ok(out) = get_project_root() {
-            let _ = fs::create_dir_all(out.join("examples"));
-            let _ = fs::write(
-                out.join("examples/__expanded.rs"),
-                code.to_string().as_bytes(),
-            );
+        if let Ok(binary_name) = std::env::var("CARGO_BIN_NAME") {
+            if let Ok(out) = project_root::get_project_root() {
+                let _ = std::fs::create_dir_all(out.join("examples"));
+                let _ = std::fs::write(
+                    out.join(format!("examples/{binary_name}_expanded.rs")),
+                    code.to_string().as_bytes(),
+                );
+            }
         }
 
         code.into()

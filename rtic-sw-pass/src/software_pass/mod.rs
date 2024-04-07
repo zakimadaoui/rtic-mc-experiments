@@ -8,6 +8,7 @@ use analyze::Analysis;
 use proc_macro2::TokenStream;
 use rtic_core::parse_utils::RticAttr;
 use rtic_core::RticPass;
+use syn::ItemMod;
 
 pub struct SoftwarePass {
     implementation: Box<dyn SoftwarePassImpl>,
@@ -22,11 +23,12 @@ impl SoftwarePass {
 }
 
 impl RticPass for SoftwarePass {
-    fn run_pass(&self, params: RticAttr, app_mod: TokenStream) -> syn::Result<TokenStream> {
-        let parsed = App::parse(&params, syn::parse2(app_mod)?)?;
+    fn run_pass(&self, args: TokenStream, app_mod: ItemMod) -> syn::Result<(TokenStream, ItemMod)> {
+        let params = RticAttr::parse_from_tokens(&args)?;
+        let parsed = App::parse(&params, app_mod)?;
         let analysis = Analysis::run(&parsed)?;
         let code = CodeGen::new(parsed, analysis, self.implementation.as_ref()).run();
-        Ok(code)
+        Ok((args, code))
     }
 }
 

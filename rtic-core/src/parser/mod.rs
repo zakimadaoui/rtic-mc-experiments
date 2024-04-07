@@ -28,7 +28,7 @@ pub struct App {
 }
 
 impl App {
-    pub fn parse(module: syn::ItemMod, args: proc_macro2::TokenStream) -> syn::Result<Self> {
+    pub fn parse(args: proc_macro2::TokenStream, module: syn::ItemMod) -> syn::Result<Self> {
         let span = module.span();
         let args = AppArgs::parse(args)?;
         let mut shared_resources = Vec::new();

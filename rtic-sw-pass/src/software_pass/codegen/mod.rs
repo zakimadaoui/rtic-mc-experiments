@@ -6,7 +6,7 @@ use crate::software_pass::parse::{App, SWT_TRAIT_TY};
 use crate::SoftwarePassImpl;
 use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote};
-use syn::{parse_quote, ItemFn, LitInt, Meta, Path};
+use syn::{parse_quote, ItemFn, ItemMod, LitInt, Meta, Path};
 
 pub struct CodeGen<'a> {
     app: App,
@@ -27,7 +27,7 @@ impl<'a> CodeGen<'a> {
         }
     }
 
-    pub fn run(&mut self) -> TokenStream {
+    pub fn run(&mut self) -> ItemMod {
         // For every sub-application, generate the software tasks and their dispatchers and associated queues and types.
         let sub_apps = self.generate_subapps();
         let pend_fn_def = self.get_pend_fn();
@@ -47,7 +47,7 @@ impl<'a> CodeGen<'a> {
         let mod_visibility = &self.app.mod_visibility;
         let mod_ident = &self.app.mod_ident;
 
-        quote! {
+        parse_quote! {
             #mod_visibility mod #mod_ident {
                 #(#rest_of_code)*
                 #sub_apps
