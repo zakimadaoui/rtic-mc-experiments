@@ -213,7 +213,7 @@ pub mod cross_core {
     pub fn pend_irq(irq: u16) {
         cortex_m::interrupt::free(|_| unsafe {
             let sio = &(*rp2040_hal::pac::SIO::PTR);
-            sio.fifo_wr.write(|wr|  wr.bits(irq as u32));
+            sio.fifo_wr.write(|wr| wr.bits(irq as u32));
         });
     }
 
