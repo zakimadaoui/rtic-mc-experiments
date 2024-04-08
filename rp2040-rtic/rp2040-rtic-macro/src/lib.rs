@@ -178,7 +178,7 @@ impl SoftwarePassImpl for SwPassBackend {
         empty_body_fn
     }
 
-    /// Provide the implementation/body of the core local interrupt pending function.
+    /// Provide the implementation/body of the cross-core interrupt pending function.
     fn impl_cross_pend_fn(&self, mut empty_body_fn: ItemFn) -> Option<ItemFn> {
         let body = parse_quote!({
             rtic::export::cross_core::pend_irq(irq_nbr);

@@ -1,47 +1,59 @@
-### Modular RTIC Implementation details 
+# Modular RTIC Implementation details 
 
-To achieve modularity and separation of concerns, `rtic-core` and other `standard compilation pass crates` expose a set of interfaces for the **distribution crate** to provide hardware specific details to be included during the code generation.
+To be able to decouple the hardware details from the declaratic model parsing and generation the `rtic-core (standard pass)` and other `compilation pass crates` expose a set of traits that can be implemented at the **distribution crate** level. The **distribution crate** aids the generic code generation part by suppling the missing hardware specific details though implementing those traits and dynamically passing the implementation.  
 
+### Traits in `rtic-core`:
 
-
-#### `rtic-core` interfaces:
-
-##### Single core hardware pass trait (ScHwPassImpl) 
+#### StandardPassImpl
 
 This trait acts as an interface between the `distribution crate`  and  `rtic-core` to provide hardware/architecture specific details needed during the code generation of the *hardware tasks and resources pass*.
 
 ```rust
-/// Interface for providing hw/architecture specific details for implementing the hardware and resources pass
-pub trait ScHwPassImpl {
-    /// Code to be inserted after the call to init() and tasks init() functions
-    /// This can for example enable interrupts used by the user and set their priorities
+/// Interface for providing hw/architecture specific details for implementing the standard tasks and resources pass
+pub trait StandardPassImpl {
+    /// Return the default task priority to be used in idle task and tasks where priority argument is not mentioned
+    fn default_task_priority(&self) -> u16;
+    /// Code to be inserted after the call to Global init() and task init() functions
+    /// This can for example enable interrupts used by the user and set their priorities.
+    /// A SubApp and SubAnalysis correspond to a single-core appliation. 
+    /// This function will be called several times depending on how many cores the user defines and the implementation supportes
     fn post_init(
         &self,
-        app_info: &ParsedRticApp,
-        app_analysis: &AppAnalysis,
+        app_args: &AppArgs,
+        app_info: &SubApp,
+        app_analysis: &SubAnalysis,
     ) -> Option<TokenStream2>;
 
-    /// Fill the body of the rtic internal critical section function with hardware specific implementation.
-    /// Use [eprintln()] to see the `fn_sign` requred function signature 
-    fn fill_interrupt_free_fn(&self, fn_sign: syn::ItemFn) -> syn::ItemFn;
+    /// Implement the body of the rtic internal critical section function with hardware specific implementation (could be used as proxy for interrupt::free).
+    /// Use [eprintln()] to see the `empty_body_fn` function signature
+    fn impl_interrupt_free_fn(&self, empty_body_fn: syn::ItemFn) -> syn::ItemFn;
 
-    /// Based on the information provided by the parsed application, such as Shared Resources priorities
-    /// and Tasks priorities. Optionally return the generated code for statically stored priority masks
+    /// Based on the information provided by the parsed sub-application, such as Shared Resources priorities
+    /// and Tasks priorities. Return the generated code for statically stored priority masks.
+    /// A SubApp and SubAnalysis correspond to a single-core appliation. 
+    /// This function will be called several times depending on how many cores the user defines and the implementation supportes
     fn compute_priority_masks(
         &self,
-        app_info: &ParsedRticApp,
-        app_analysis: &AppAnalysis,
-    ) -> Option<TokenStream2>;
+        app_args: &AppArgs,
+        app_info: &SubApp,
+        app_analysis: &SubAnalysis,
+    ) -> TokenStream2;
 
     /// Complete the implementation of the lock function for resource proxies
     /// Use [eprintln()] to see the `incomplete_lock_fn` singature and already provided logic inside it 
+    /// see rp2040-rtic/rp2040-rtic-macro/src/lib.rs for more details
     fn impl_lock_mutex(&self, incomplete_lock_fn: syn::ItemFn) -> syn::ItemFn;
 
-    /// Implementation for WFI (Wait for interrupt) instruction to be (optionally) used in default idle task
+    /// Entry name for specific core
+    /// This function is useful when there are multiple entries (multi-core app)
+    /// and only one entry needs to be named `main`, but also the name of the other 
+    /// entries needs to be known at the distribution crate level for other uses.
+    fn entry_name(&self, core: u32) -> Ident;
+
+    /// Implementation for WFI (Wait for interrupt) instruction to be used in default idle task
     fn wfi(&self) -> Option<TokenStream2>;
 }
 ```
-
 
 
 ##### Abstract RTIC compilation pass trait (RticPass)
@@ -68,17 +80,25 @@ pub fn app(args: TokenStream, input: TokenStream) -> TokenStream {
     
     let sw_pass =  /*Initialize software pass struct from the rtic-sw-pass crate */;
     let mono_pass =  /*Initialize monotonics pass struct from the Monotonics pass crate */;
-    let mc_pass =  /* Initialize multi-core struct from the Multi-core pass crate */;
+    let auto_assign_pass =  /* Initialize struct from the automatic task assignment to cores pass crate */;
     let other_pass1 =  /* Initialize pass from 3rd party crate */;
     let other_pass2 =  /* Initialize pass from 3rd party crate  */;
     
     let mut builder = RticAppBuilder::new(hw_pass); // Hardware pass is mandatory, other passes aren't
     builder.add_compilation_pass(CompilationPass::SwPass(sw_pass));
-    builder.add_compilation_pass(CompilationPass::McPass(mc_pass));
     builder.add_compilation_pass(CompilationPass::MonotonicsPass(mono_pass));
+    builder.add_compilation_pass(CompilationPass::McPass(auto_assign_pass));
     builder.add_compilation_pass(CompilationPass::Other(other_pass1));
     builder.add_compilation_pass(CompilationPass::Other(other_pass2));
     builder.build_rtic_application(args, input)
+
+    // passes will be executed in this order
+    // - auto_assign_pass
+    // - other_pass1
+    // - other_pass2
+    // - mono_pass
+    // - sw_pass
+    // - hw_pass
 }
 ```
 
@@ -86,74 +106,34 @@ pub fn app(args: TokenStream, input: TokenStream) -> TokenStream {
 
 #### `rtic-sw-pass` interface
 
-The `rtic-sw-pass` crate provides the `ScSoftwarePass` type which stands for Single core software pass and it already implements `RticPass` trait. An instance of type can be directly passed to `rtic-core` as a `CompilationPass::SwPass(...)` to add additional syntax for software tasks in you RTIC distibution .
+The `rtic-sw-pass` crate provides the software tasks pass thought the type `SoftwarePass` which already implements `RticPass` trait. However, missing hardware specific implementation for pend() and cross_pend() functions have to be provided by the distribution through implementing the `SoftwarePassImpl` trait:
 
-The only thing that needs to provided by the ditribution create the is implementation of the `pend()` function. Which can be provided though the following interface:
 
 ```rust 
-/// Interface for providing the hardware specific details needed by the single-core software pass
-pub trait ScSoftwarePassImpl {
-    /// Fill the body of the rtic internal pend() function with hardware specific implementation.
-    /// Use [eprintln()] to see the `empty_body_fn` function signature
-    fn fill_pend_fn(&self, empty_body_fn: syn::ItemFn) -> syn::ItemFn;
+/// Interface for providing the hardware specific details needed by the software pass
+pub trait SoftwarePassImpl {
+    /// Provide the implementation/body of the core local interrupt pending function. (implementation is hardware dependent)
+    /// You can use [eprintln()] to see the `empty_body_fn` function signature
+    fn impl_pend_fn(&self, empty_body_fn: syn::ItemFn) -> syn::ItemFn;
+
+    /// (Optionally) Provide the implementation/body of the cross-core interrupt pending function. (implementation is hardware dependent)
+    /// You can use [eprintln()] to see the `empty_body_fn` function signature
+    fn impl_cross_pend_fn(&self, empty_body_fn: syn::ItemFn) -> Option<syn::ItemFn>;
 }
 ```
 
 ----
 
-### Putting it all together: An rp2040 single core RTIC application implementation
+### Putting it all together: A rp2040 multi-core RTIC application implementation
 
-To demonstrate how easy it is to create RTIC distributions, This example will show how an RP2040 single core rtic distribution can be built. 
-
-
+To demonstrate how easy it is to create RTIC distributions, This example will show how an RP2040 multi-core rtic distribution can be built. 
 
 First, let's start by providing the hadware specific details for the Hadware tasks and resources pass by implementing the `ScHwPassImpl` trait:
 
 ```rust
-impl ScHwPassImpl for Rp2040HwPassBackend {
-    fn post_init(
-        &self,
-        app_info: &rtic_core::ParsedRticApp,
-        app_analysis: &rtic_core::AppAnalysis,
-    ) -> Option<proc_macro2::TokenStream> {
-        /* generate code for initializing interrupts and setting their priorities */
-        /* for a real example see the implemnetation in rp2040-rtic crate in this git repo */
-    }
-
-    fn wfi(&self) -> Option<proc_macro2::TokenStream> {
-        Some(quote! { unsafe { core::arch::asm!("wfi" ); } })
-    }
-
-    fn fill_interrupt_free_fn(&self, mut empty_body_fn: ItemFn) -> ItemFn {
-        // use eprintln!("{}", empty_body_fn.to_token_stream().to_string()); 
-        // enable above comment to see the required function signature
-        let fn_body = parse_quote! {
-            {
-                unsafe { core::arch::asm!("cpsid i"); } // critical section begin
-                let r = f();
-                unsafe { core::arch::asm!("cpsie i"); } // critical section end
-                r
-            }
-        };
-        empty_body_fn.block = Box::new(fn_body);
-        empty_body_fn
-    }
-
-    fn compute_priority_masks(
-        &self,
-        app_info: &ParsedRticApp,
-        _app_analysis: &AppAnalysis,
-    ) -> proc_macro2::TokenStream {
-        /* for a real example see the implemnetation in rp2040-rtic crate in this git repo */
-    }
-
-    fn impl_lock_mutex(&self) -> proc_macro2::TokenStream {
-        // deligate task to some function provided in exports
-        // see rp2040-rtic/src/export.rs
-        quote! {
-            unsafe {rtic::export::lock(resource, task_priority, CEILING, &__rtic_internal_MASKS, f);}
-        }
-    }
+impl StandartPassImpl for Rp2040HwPassBackend {
+    /* see rp2040-rtic/rp2040-rtic-macro/src/lib.rs and rp2040-rtic/src/export.rs */
+    /* Only about 200 lines of code needed */
 }
 ```
 
@@ -163,7 +143,7 @@ Then lets do the same for software pass:
 
 ```rust
 struct SwPassBackend;
-impl ScSoftwarePassImpl for SwPassBackend {
+impl SoftwarePassImpl for SwPassBackend {
     fn fill_pend_fn(&self, mut empty_body_fn: ItemFn) -> ItemFn {
         let body = parse_quote!({
             // taken from cortex-m implementation
@@ -174,6 +154,14 @@ impl ScSoftwarePassImpl for SwPassBackend {
         });
         empty_body_fn.block = Box::new(body);
         empty_body_fn
+    }
+
+    fn impl_cross_pend_fn(&self, mut empty_body_fn: ItemFn) -> Option<ItemFn> {
+        let body = parse_quote!({
+            rtic::export::cross_core::pend_irq(irq_nbr);
+        });
+        empty_body_fn.block = Box::new(body);
+        Some(empty_body_fn)
     }
 }
 ```
@@ -197,7 +185,7 @@ pub fn app(args: TokenStream, input: TokenStream) -> TokenStream {
 
 ----
 
-### Using the resulting Single-core Rp2040 RTIC Framework
+### Using the resulting Rp2040 RTIC Framework for a Single-core app
 
 ```rust
 #[rp2040_rtic::app(
@@ -256,7 +244,7 @@ pub mod my_single_core_app {
         }
     }
         
-    #[task(priority = 1, shared = [shared2])]
+    #[sw_task(priority = 1, shared = [shared2])]
     struct MySwTask {
         /* local resources */
     }
@@ -298,13 +286,11 @@ in **Cargo.toml** of this application the feature `sw_tasks` must be enabled to 
 
 **NOTE1:** Because this is just an experiment, `rtic-core` implements only a subset of the Original RTIC declarative model. Currently only Init, idle, Hardware task, Software tasks with message passing, local and shared resources are provided ( monotonics, and async not implemented yet)
 
-**NOTE about changed syntax:** the way of **declaring a task now uses a struct that implements a specific task trait instead of a function** with Context,  the way of **defining local resources is by defining member variables of the Task struct**. and finally, shared resources are accessed through the `shared()` API, instead of using Context. The reason for this change is purely because this allows rapid prototyping due to the fact that it is much easier/faster to implement such model (and IMHO also feels less complicated/ more intuitive for first time users ).
+**NOTE about changed syntax:** the way of **declaring a task now uses a struct that implements a specific task trait instead of a function** with Context,  the way of **defining local resources is by defining member variables of the Task struct**. and finally, shared resources are accessed through the `shared()` API, instead of using Context. The reason for this change is purely because this allows rapid prototyping due to the fact that it is much easier/faster to implement such model (and IMHO also feels less complicated/more intuitive for first time users, but this is not the purpose of this project and should be skipped for real rtic ).
 
 
 
-For a real example on the rp2040 see:
-
--  [blinky.rs](rp2040-rtic/examples/blinky.rs) and [__expanded.rs](rp2040-rtic/examples/__expanded.rs) which shows what the application expands to
+For a real example on the rp2040 see [hello_rtic.rs](rp2040-rtic/examples/hello_rtic.rs) and [hello_rtic_expanded.rs](rp2040-rtic/examples/hello_rtic_expanded.rs) which shows what the application expands to
 
 
 

@@ -27,7 +27,6 @@ static DEFAULT_TASK_PRIORITY: AtomicU16 = AtomicU16::new(0);
 
 pub struct RticAppBuilder {
     core: Box<dyn StandardPassImpl>,
-    multicore_pass: Option<Box<dyn RticPass>>,
     sw_pass: Option<Box<dyn RticPass>>,
     monotonics_pass: Option<Box<dyn RticPass>>,
     other_passes: Vec<Box<dyn RticPass>>,
@@ -41,7 +40,6 @@ pub trait RticPass {
 }
 
 pub enum CompilationPass {
-    MultiCorePass(Box<dyn RticPass>),
     SwPass(Box<dyn RticPass>),
     MonotonicsPass(Box<dyn RticPass>),
     Other(Box<dyn RticPass>),
@@ -51,7 +49,6 @@ impl RticAppBuilder {
     pub fn new<T: StandardPassImpl + 'static>(core_impl: T) -> Self {
         Self {
             core: Box::new(core_impl),
-            multicore_pass: None,
             monotonics_pass: None,
             sw_pass: None,
             other_passes: Vec::new(),
@@ -60,7 +57,6 @@ impl RticAppBuilder {
 
     pub fn add_compilation_pass(&mut self, pass: CompilationPass) {
         match pass {
-            CompilationPass::MultiCorePass(mono) => self.multicore_pass = Some(mono),
             CompilationPass::SwPass(sw) => self.sw_pass = Some(sw),
             CompilationPass::MonotonicsPass(mono) => self.monotonics_pass = Some(mono),
             CompilationPass::Other(pass) => self.other_passes.push(pass),
@@ -139,12 +135,17 @@ pub trait StandardPassImpl {
         app_analysis: &SubAnalysis,
     ) -> Option<TokenStream2>;
 
+    /// Return the default task priority to be used in idle task and tasks where priority argument is not mentioned
+    fn default_task_priority(&self) -> u16;
+
     /// Fill the body of the rtic internal critical section function with hardware specific implementation.
     /// Use [eprintln()] to see the `empty_body_fn` function signature
     fn fill_interrupt_free_fn(&self, empty_body_fn: syn::ItemFn) -> syn::ItemFn;
 
     /// Based on the information provided by the parsed application, such as Shared Resources priorities
     /// and Tasks priorities. Return the generated code for statically stored priority masks
+    /// A SubApp and SubAnalysis correspond to a single-core appliation.
+    /// This function will be called several times depending on how many cores the user defines and the implementation supportes
     fn compute_priority_masks(
         &self,
         app_args: &AppArgs,
@@ -152,45 +153,17 @@ pub trait StandardPassImpl {
         app_analysis: &SubAnalysis,
     ) -> TokenStream2;
 
-    /// Provide the body mutex implementation:
-    /// impl #mutex_ty for #proxy_name {
-    ///     type ResourceType = #element_ty;
-    ///     fn lock(&mut self, f: impl FnOnce(&mut #element_ty)) {
-    ///         const CEILING: u16 = #ceiling;
-    ///         let task_priority = self.priority;
-    ///         let resource = unsafe {&mut #global_resources_handle.assume_init_mut().#element_name} as *mut _;
-    ///
-    ///         /* Your TokenStream will be inseted here */
-    ///         /* Also remember that you can have access to a global pre-computed priority mask(s) implemented by [compute_priority_masks()] */
-    ///     }
-    /// }
-    ///
-    // TODO: this interface can be improved by providing a struct like this:
-    /*
-    LockParams {
-        resource_handle : TokenStream, // &mut resource
-        current_task_priority : TokenStream, // u16 value of current task priority
-        ceiling_value: TokenStream, // u16 value of resource priority
-        lock_closure_handle: TokenStream, // the f(resource: &ResourceType)
-    }
-
-    // Then implementation can look like this
-    quote! {
-        unsafe {rtic::export::lock(#resource_handle,
-                                   #current_task_priority,
-                                   #ceiling_value,
-                                   &__rtic_internal_MASKS, // comes from  `compute_priority_masks(...)` implementation
-                                   #lock_closure_handle
-                                   );}
-    }
-    */
+    /// Complete the implementation of the lock function for resource proxies
+    /// Use [eprintln()] to see the `incomplete_lock_fn` singature and already provided logic inside it
+    // fn impl_lock_mutex(&self, incomplete_lock_fn: syn::ItemFn) -> syn::ItemFn; // TODO: use this improved interface instead
     fn impl_lock_mutex(&self, app_info: &SubApp) -> TokenStream2;
+
+    /// Entry name for specific core
+    /// This function is useful when there are multiple entries (multi-core app)
+    /// and only one entry needs to be named `main`, but also the name of the other
+    /// entries needs to be known at the distribution crate level for other uses.
+    fn entry_name(&self, core: u32) -> Ident;
 
     /// Implementation for WFI (Wait for interrupt) instruction to be used in default idle task
     fn wfi(&self) -> Option<TokenStream2>;
-
-    /// Entry name for specific core
-    fn entry_name(&self, core: u32) -> Ident;
-
-    fn default_task_priority(&self) -> u16;
 }

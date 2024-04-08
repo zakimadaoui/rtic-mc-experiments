@@ -107,28 +107,34 @@ For the sake of sipmilification, let's assume that we have a dual core system (b
   - tasks that are spawned locally (local core message passing)
   - tasks that are spawned by the other core (cross-core message passing in One Direction)
   - and it is **forbidden** to have a dispatcher that sevrves both the above purposes due to race conditions
-- In addition, cross-core tasks in the same priority group must all have the spawn_by index. I,e a dispatcher for cross core tasks can only serve one SPAWNER core.
+- In addition, cross-core tasks of the same priority group must all have the same spawn_by index. I,e a dispatcher for cross core tasks can only serve one SPAWNER core.
+- Priority of cross-core tasks cannot overlap with the priority of core-local tasks (they must have different dipatchers)
 
-The above Constraints will be inforced at compile time and violations will be detected during the analysis phase.
+The above Constraints will be inforced at compile time and violations can be detected during the analysis phase.
 
 
 
 -  and additional `spawned_by` attribute argument will be needed for software tasks to allow analysis to be performed to 
   1. ensure no race conditions occur when cores spawn tasks
   2. deciding which interrupt pending function to use. pend() or cross_pend() is generated inside the spawn API call impelemntation based on the `spawned_by = N`  argument when compared to `core` assigned to the task. if they are the same, then used pend() is used, otherwize use cross_pend().
-  3. pend() and cross_pend() specific implementation will be both provided by the `RTIC distribution` among other details. 
-  4. When the argument is not provided it is automatically assumed that the task will be spawned locally
+  3. pend() and cross_pend() specific implementation will be both provided by the `RTIC distribution` alongside other hardware specific details. 
+  4. When the argument is not provided it is automatically assumed that the task will be spawned locally. ie, spawn_by == core
 
 
 
-### Open questions about Multi-core pass and some answers
+### Open questions/problems about Multi-core RTIC and some answers
 
 #### Solved problems so far
 
 1. how to initialize the other core ? knowing that some architectures allow core A to start core B while others don't
-   - solution: use post-init of core 1 to init core 2 (tested and already works)
-2. Should there be multi-core pass ? or should the standard pass, software pass be re-factored to be generic enought to fit multicore applications. 
-   1. from experiments, the second option seems to be the most viable. in addition, an extra compilation pass can be added to perform automatic task assignment to cores (but can't call this multi-core task)
+   - solution: use post-init() API when called for core 1 to init core 2 (tested and already works)
+2. Should there be multi-core pass ? or should the standard pass and software pass be re-factored to be generic enought to fit multicore applications. 
+   1. from experiments, the second option seems to be the most viable. The main reasons are:
+        - to have a multi-core application with multiple entries, the standard-pass must be able to detect that.
+        - multi-core software tasks implementation are 98% similar to core-local task with the only exception beign the cross_pend() instead of pend()
+        - it is easier to distribute tasks to dispatchers and make analysis and validation when core-local and cross-core software tasks
+
+    2. in addition to re-factoring the standard-pass and software-pass to allow generic multi-core applications. An extra compilation pass or more can be added to perform automatic task assignment to cores, and application and memory partitioning
 
 3. how to analyse multi-core application and have certain guarantees that spawning is done correctly (i,e no undefined behavior is allowed and no situtation that leads to race conditions)?
    1. -> already solved, see implementation of sw pass and standard pass (analysis part mostly)
