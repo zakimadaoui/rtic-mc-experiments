@@ -1,9 +1,10 @@
 use std::collections::HashMap;
 
-use proc_macro2::TokenStream as TokenStream2;
-use quote::format_ident;
-use syn::{parse::Parser, Attribute, Meta};
+use proc_macro2::{Punct, Spacing, TokenStream as TokenStream2};
+use quote::{format_ident, quote, ToTokens, TokenStreamExt};
+use syn::{parse::Parser, parse_quote, Attribute, Meta};
 
+#[derive(Debug)]
 pub struct RticAttr {
     pub name: Option<syn::Ident>,
     pub elements: HashMap<String, syn::Expr>,
@@ -54,5 +55,19 @@ impl RticAttr {
             name: None,
             elements,
         })
+    }
+}
+
+impl ToTokens for RticAttr {
+    fn to_tokens(&self, tokens: &mut TokenStream2) {
+        let args = self.elements.iter().map(|(name, value)| {
+            let name = format_ident!("{name}");
+            quote!(#name = #value)
+        });
+        let mut args_token_stream = TokenStream2::new();
+        args_token_stream.append_separated(args, Punct::new(',', Spacing::Alone));
+        let attr_name = self.name.as_ref().unwrap();
+        let attribue: Attribute = parse_quote!(#[#attr_name(#args_token_stream)]);
+        tokens.append_all(attribue.to_token_stream())
     }
 }

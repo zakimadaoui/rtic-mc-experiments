@@ -1,6 +1,7 @@
 use proc_macro::TokenStream;
 use proc_macro2::{Ident, TokenStream as TokenStream2};
 use quote::{format_ident, quote};
+use rtic_auto_assign::AutoAssignPass;
 use rtic_core::{AppArgs, CompilationPass, RticAppBuilder, StandardPassImpl, SubAnalysis, SubApp};
 use syn::{parse_quote, ItemFn};
 
@@ -20,9 +21,11 @@ pub fn app(args: TokenStream, input: TokenStream) -> TokenStream {
 
     let mut builder = RticAppBuilder::new(Rp2040Rtic);
     builder.add_compilation_pass(CompilationPass::SwPass(sw_pass));
+    builder.add_compilation_pass(CompilationPass::Other(Box::new(AutoAssignPass)));
     builder.build_rtic_application(args, input)
 }
 
+// =========================================== Trait implementations ===================================================
 impl StandardPassImpl for Rp2040Rtic {
     fn default_task_priority(&self) -> u16 {
         MIN_TASK_PRIORITY
