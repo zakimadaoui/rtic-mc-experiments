@@ -17,3 +17,5 @@ heapless = "0.8.0"
 std = ["dep:heck","dep:proc-macro2","dep:quote","dep:syn", "dep:rtic-core" ]
 # std enabled by default, disable this when you need to export no_std part
 default = ["std"]
+
+multibin = ["rtic-core/multibin"]

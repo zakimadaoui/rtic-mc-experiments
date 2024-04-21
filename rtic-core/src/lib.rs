@@ -12,6 +12,7 @@ pub use common::rtic_traits;
 
 use crate::analysis::Analysis;
 pub use crate::analysis::SubAnalysis;
+pub use crate::codegen::multibin;
 use crate::codegen::CodeGen;
 pub use crate::parser::ast::AppArgs;
 pub use crate::parser::{App, SubApp};
@@ -166,4 +167,20 @@ pub trait StandardPassImpl {
 
     /// Implementation for WFI (Wait for interrupt) instruction to be used in default idle task
     fn wfi(&self) -> Option<TokenStream2>;
+
+    /// Provide the path to the rexported microamp::shared attribute
+    /// Example implementation can be
+    /// ```rust
+    /// fn multibin_shared_crate_path() -> syn::Path {
+    ///     syn::parse_quote! {
+    ///         rtic::exports::microamp::shared
+    ///     }
+    /// }
+    ///
+    /// This will be used to generate the use statement:
+    /// ```rust
+    /// use rtic::exports::microamp::shared as multibin_shared
+    /// ```
+    #[cfg(feature = "multibin")]
+    fn multibin_shared_path() -> syn::Path;
 }

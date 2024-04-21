@@ -49,6 +49,7 @@ In this experiment project
 - [Modular rtic Implementation details + Example single core rp2040 rtic application](modular_rtic_impl.md)
 - [Multicore rtic declarative model](rtic_mc.md)
 - [Steps of porting the single core implementation to multi-core](rtic_mc_steps.md)
+- [uAMP integration and initial multi-binary support for multi-core RTIC applications](microamp_integration.md)
 
 ### Other useful links
 - [single core rtic application example](rp2040-rtic/examples/hello_rtic.rs) 

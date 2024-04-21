@@ -2,16 +2,20 @@ use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 
 use crate::common::rtic_traits::MUTEX_TY;
+use crate::multibin;
 use crate::parser::ast::{RticTask, SharedResources};
 
 impl SharedResources {
     pub fn generate_shared_resources_def(&self) -> TokenStream2 {
+        let cfg_core = multibin::multibin_cfg_core(self.args.core);
         let shared_struct = &self.strct;
         let resources_ty = &shared_struct.ident;
         let static_instance_name = &self.name_uppercase();
 
         quote! {
+            #cfg_core
             static mut #static_instance_name: core::mem::MaybeUninit<#resources_ty> = core::mem::MaybeUninit::uninit();
+            #cfg_core
             #shared_struct
         }
     }
@@ -24,13 +28,16 @@ impl SharedResources {
             let ceiling = &element.priority;
             let proxy_name = utils::get_proxy_name(element_name);
             let mutex_ty = format_ident!("{}", MUTEX_TY);
+            let cfg_core = multibin::multibin_cfg_core(self.args.core);
             quote! {
                 // Resource proxy for `#element_name`
+                #cfg_core
                 struct #proxy_name {
                     #[doc(hidden)]
                     priority: u16,
                 }
 
+                #cfg_core
                 impl #proxy_name {
                     #[inline(always)]
                     pub fn new(priority: u16) -> Self {
@@ -38,6 +45,7 @@ impl SharedResources {
                     }
                 }
 
+                #cfg_core
                 impl #mutex_ty for #proxy_name {
                     type ResourceType = #element_ty;
                     fn lock(&mut self, f: impl FnOnce(&mut #element_ty)) {
@@ -55,6 +63,7 @@ impl SharedResources {
     }
 
     pub fn generate_shared_for_task(&self, task: &RticTask) -> TokenStream2 {
+        let cfg_core = multibin::multibin_cfg_core(self.args.core);
         let task_resources_idents = &task.args.shared_idents;
         if task_resources_idents.is_empty() {
             return quote!();
@@ -80,6 +89,7 @@ impl SharedResources {
             format_ident!("__{}_shared_resources", task.name_snakecase());
         quote! {
             // Shared resources access through shared() API for `#task_ty`
+            #cfg_core
             impl #task_ty {
                 pub fn shared(&self) -> #task_shared_resources_struct {
                     const TASK_PRIORITY: u16 = #task_prio;
@@ -88,10 +98,12 @@ impl SharedResources {
             }
 
             // internal struct for `#task_ty` resource proxies
+            #cfg_core
             struct #task_shared_resources_struct {
                 #(pub #field_and_proxytype ,)*
             }
 
+            #cfg_core
             impl #task_shared_resources_struct {
                 #[inline(always)]
                 pub fn new(priority: u16) -> Self {

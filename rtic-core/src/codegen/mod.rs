@@ -9,6 +9,7 @@ use crate::parser::{ast::IdleTask, App};
 use crate::StandardPassImpl;
 
 pub mod hw_task;
+pub use utils::multibin;
 mod shared_resources;
 mod utils;
 
@@ -35,6 +36,14 @@ impl<'a> CodeGen<'a> {
         let app = self.app;
         let implementation = self.implementation;
 
+        #[cfg(feature = "multibin")]
+        let use_multibin_shared = {
+            let multibin_shared_path = self.implementation.multibin_shared_crate_path();
+            Some(quote!(use #multibin_shared_path as multibin_shared;))
+        };
+        #[cfg(not(feature = "multibin"))]
+        let use_multibin_shared: Option<TokenStream2> = None;
+
         let app_mod = &app.app_name;
         let peripheral_crate = &app.args.device;
         let user_includes = &app.user_includes;
@@ -51,6 +60,8 @@ impl<'a> CodeGen<'a> {
             pub mod #app_mod {
                 /// Include peripheral crate that defines the vector table
                 use #peripheral_crate as _;
+                // if multibin feature is enabled, add the this use statement
+                #use_multibin_shared
 
                 /// ================================== user includes ====================================
                 #(#user_includes)*
@@ -79,6 +90,7 @@ impl<'a> CodeGen<'a> {
             .zip(self.analysis.sub_analysis.iter());
         let args = &self.app.args;
         let apps = iter.map(|(app, analysis)| {
+            let cfg_core = multibin::multibin_cfg_core(app.core);
             let post_init = implementation.post_init(args, app, analysis);
 
             // init
@@ -130,6 +142,7 @@ impl<'a> CodeGen<'a> {
                 // define static mut shared resources
                 #def_shared
                 // init task
+                #cfg_core
                 #def_init_task
                 // idle task
                 #def_idle_task
@@ -146,7 +159,7 @@ impl<'a> CodeGen<'a> {
 
                 #[doc = r" Entry of "]
                 #[doc = #doc]
-
+                #cfg_core
                 #[no_mangle]
                 pub fn #entry_name() -> ! {
                     // Disable interrupts during initialization
