@@ -81,7 +81,7 @@ impl StandardPassImpl for Rp2040Rtic {
         })
     }
 
-    fn fill_interrupt_free_fn(&self, mut empty_body_fn: ItemFn) -> ItemFn {
+    fn impl_interrupt_free_fn(&self, mut empty_body_fn: ItemFn) -> ItemFn {
         // eprintln!("{}", empty_body_fn.to_token_stream().to_string()); // enable comment to see the function signature
         let fn_body = parse_quote! {
             {
@@ -95,12 +95,12 @@ impl StandardPassImpl for Rp2040Rtic {
         empty_body_fn
     }
 
-    fn compute_priority_masks(
+    fn compute_lock_static_args(
         &self,
         app_args: &AppArgs,
         app_info: &SubApp,
         _app_analysis: &SubAnalysis,
-    ) -> TokenStream2 {
+    ) -> Option<TokenStream2> {
         let peripheral_crate = &app_args.device;
 
         // irq names from hadware tasks
@@ -135,7 +135,7 @@ impl StandardPassImpl for Rp2040Rtic {
         let core = app_info.core;
         let chunks_ident = format_ident!("__rtic_internal_MASK_CHUNKS_core{core}");
         let masks_ident = format_ident!("__rtic_internal_MASKS_core{core}");
-        quote! {
+        Some(quote! {
             #[doc(hidden)]
             #[allow(non_upper_case_globals)]
             const #chunks_ident: usize = rtic::export::compute_mask_chunks([
@@ -147,15 +147,25 @@ impl StandardPassImpl for Rp2040Rtic {
             const #masks_ident: [rtic::export::Mask<#chunks_ident>; 3] = [
                 #(#masks)*
             ];
-        }
+        })
     }
 
-    fn impl_lock_mutex(&self, app_info: &SubApp) -> TokenStream2 {
+    fn impl_resource_proxy_lock(
+        &self,
+        _app_args: &AppArgs,
+        app_info: &SubApp,
+        incomplete_lock_fn: syn::ImplItemFn,
+    ) -> syn::ImplItemFn {
         let core = app_info.core;
-        let masks_ident = format_ident!("__rtic_internal_MASKS_core{core}");
-        quote! {
-            unsafe { rtic::export::lock(resource, task_priority, CEILING, &#masks_ident, f); }
-        }
+        let masks_ident = format_ident!("__rtic_internal_MASKS_core{core}"); // already computed by `compute_lock_static_args(...)`
+
+        let lock_impl: syn::Block = parse_quote! {
+            { unsafe { rtic::export::lock(resource_ptr, task_priority, CEILING, &#masks_ident, f); } }
+        };
+
+        let mut completed_lock_fn = incomplete_lock_fn;
+        completed_lock_fn.block.stmts.extend(lock_impl.stmts);
+        completed_lock_fn
     }
 
     fn entry_name(&self, core: u32) -> Ident {

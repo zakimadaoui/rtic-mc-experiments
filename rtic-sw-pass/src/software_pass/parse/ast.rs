@@ -57,7 +57,7 @@ impl AppParameters {
             }
         }
 
-        if cores as usize != dispatchers.len() {
+        if !dispatchers.is_empty() && cores as usize != dispatchers.len() {
             return Err(syn::Error::new(
                 Span::call_site(),
                 format!(

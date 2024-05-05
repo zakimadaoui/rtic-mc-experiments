@@ -38,7 +38,7 @@ impl<'a> CodeGen<'a> {
 
         #[cfg(feature = "multibin")]
         let use_multibin_shared = {
-            let multibin_shared_path = self.implementation.multibin_shared_crate_path();
+            let multibin_shared_path = self.implementation.multibin_shared_macro_path();
             Some(quote!(use #multibin_shared_path as multibin_shared;))
         };
         #[cfg(not(feature = "multibin"))]
@@ -115,7 +115,7 @@ impl<'a> CodeGen<'a> {
             let hw_tasks_binds = app
                 .tasks
                 .iter()
-                .filter_map(RticTask::generate_hw_task_to_irq_binding);
+                .filter_map(|t| t.generate_hw_task_to_irq_binding(implementation));
 
             // shared resources
             let shared = app.shared.as_ref();
@@ -123,11 +123,11 @@ impl<'a> CodeGen<'a> {
             let shared_resources_handle = shared.map(SharedResources::name_uppercase);
             let shared_resources_handle = shared_resources_handle.iter();
             let resource_proxies = app.shared.as_ref().map(|shared| {
-                shared.generate_resource_proxies(&implementation.impl_lock_mutex(app))
+                shared.generate_resource_proxies(implementation, args, app)
             });
 
             // priority masks
-            let priority_masks = implementation.compute_priority_masks(args, app, analysis);
+            let priority_masks = implementation.compute_lock_static_args(args, app, analysis);
             let entry_name = implementation.entry_name(app.core);
 
             let interrupt_free = format_ident!("{}", INTERRUPT_FREE_FN);

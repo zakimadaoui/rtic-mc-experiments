@@ -1,6 +1,0 @@
-{
-    "rust-analyzer.linkedProjects": [
-        "./rp2040-rtic-derive/Cargo.toml",
-        "./rp2040-rtic-derive/Cargo.toml"
-    ]
-}

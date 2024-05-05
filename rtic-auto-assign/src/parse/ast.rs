@@ -33,7 +33,7 @@ impl RticTask {
             None
         };
 
-        let shared_items = if let Some(Expr::Array(arr)) = params.elements.get("core") {
+        let shared_items = if let Some(Expr::Array(arr)) = params.elements.get("shared") {
             arr.elems
                 .iter()
                 .map(|item| format_ident!("{}", item.to_token_stream().to_string()))

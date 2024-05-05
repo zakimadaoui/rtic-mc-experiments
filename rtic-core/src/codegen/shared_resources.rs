@@ -2,8 +2,9 @@ use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 
 use crate::common::rtic_traits::MUTEX_TY;
-use crate::multibin;
 use crate::parser::ast::{RticTask, SharedResources};
+use crate::rtic_functions::get_resource_proxy_lock_fn;
+use crate::{multibin, AppArgs, StandardPassImpl, SubApp};
 
 impl SharedResources {
     pub fn generate_shared_resources_def(&self) -> TokenStream2 {
@@ -20,40 +21,49 @@ impl SharedResources {
         }
     }
 
-    pub fn generate_resource_proxies(&self, lock_implementation: &TokenStream2) -> TokenStream2 {
-        let global_resources_handle = self.name_uppercase();
+    pub fn generate_resource_proxies(
+        &self,
+        implementor: &dyn StandardPassImpl,
+        app_params: &AppArgs,
+        app_info: &SubApp,
+    ) -> TokenStream2 {
+        let static_mut_shared_resources = self.name_uppercase();
         let proxies = self.resources.iter().map(|element| {
             let element_name = &element.ident;
             let element_ty = &element.ty;
-            let ceiling = &element.priority;
             let proxy_name = utils::get_proxy_name(element_name);
             let mutex_ty = format_ident!("{}", MUTEX_TY);
             let cfg_core = multibin::multibin_cfg_core(self.args.core);
+
+            // generate the implementation of lock function, using external implementation
+            let impl_lock_fn = get_resource_proxy_lock_fn(
+                implementor,
+                app_params,
+                app_info,
+                element,
+                &static_mut_shared_resources,
+            );
+
             quote! {
                 // Resource proxy for `#element_name`
                 #cfg_core
                 struct #proxy_name {
                     #[doc(hidden)]
-                    priority: u16,
+                    task_priority: u16,
                 }
 
                 #cfg_core
                 impl #proxy_name {
                     #[inline(always)]
-                    pub fn new(priority: u16) -> Self {
-                        Self { priority }
+                    pub fn new(task_priority: u16) -> Self {
+                        Self { task_priority }
                     }
                 }
 
                 #cfg_core
                 impl #mutex_ty for #proxy_name {
                     type ResourceType = #element_ty;
-                    fn lock(&mut self, f: impl FnOnce(&mut #element_ty)) {
-                        const CEILING: u16 = #ceiling;
-                        let task_priority = self.priority;
-                        let resource = unsafe {&mut #global_resources_handle.assume_init_mut().#element_name} as *mut _;
-                        #lock_implementation
-                    }
+                    #impl_lock_fn
                 }
             }
         });

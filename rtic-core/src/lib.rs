@@ -111,6 +111,7 @@ impl RticAppBuilder {
 
         let code = CodeGen::new(self.core.as_ref(), &parsed_app, &analysis).run();
 
+        #[cfg(feature = "debug_expand")]
         if let Ok(binary_name) = std::env::var("CARGO_BIN_NAME") {
             if let Ok(out) = project_root::get_project_root() {
                 let _ = std::fs::create_dir_all(out.join("examples"));
@@ -127,6 +128,9 @@ impl RticAppBuilder {
 
 /// Interface for providing hw/architecture specific details for implementing the standard tasks and resources pass
 pub trait StandardPassImpl {
+    /// Return the default task priority to be used in idle task and tasks where priority argument is not mentioned
+    fn default_task_priority(&self) -> u16;
+
     /// Code to be inserted after the call to Global init() and task init() functions
     /// This can for example enable interrupts used by the user and set their priorities
     fn post_init(
@@ -136,28 +140,40 @@ pub trait StandardPassImpl {
         app_analysis: &SubAnalysis,
     ) -> Option<TokenStream2>;
 
-    /// Return the default task priority to be used in idle task and tasks where priority argument is not mentioned
-    fn default_task_priority(&self) -> u16;
-
-    /// Fill the body of the rtic internal critical section function with hardware specific implementation.
-    /// Use [eprintln()] to see the `empty_body_fn` function signature
-    fn fill_interrupt_free_fn(&self, empty_body_fn: syn::ItemFn) -> syn::ItemFn;
-
-    /// Based on the information provided by the parsed application, such as Shared Resources priorities
-    /// and Tasks priorities. Return the generated code for statically stored priority masks
-    /// A SubApp and SubAnalysis correspond to a single-core appliation.
-    /// This function will be called several times depending on how many cores the user defines and the implementation supportes
-    fn compute_priority_masks(
+    /// Based on the given information about the (core-local) application, such as parsed application args, parsed sub-application and analysis,
+    /// (optionally) generated the statically computed params needed to pass to the lock() function.
+    /// These params could be for example masks or constant values that can later be passed to the lock() function implemented in `impl_resource_proxy_lock()`
+    /// Notes:
+    /// - A SubApp and SubAnalysis correspond to a single-core appliation.
+    /// - This function will be called several times depending on how many cores the user defines and the implementation supports
+    fn compute_lock_static_args(
         &self,
         app_args: &AppArgs,
         app_info: &SubApp,
         app_analysis: &SubAnalysis,
-    ) -> TokenStream2;
+    ) -> Option<TokenStream2>;
 
-    /// Complete the implementation of the lock function for resource proxies
-    /// Use [eprintln()] to see the `incomplete_lock_fn` singature and already provided logic inside it
-    // fn impl_lock_mutex(&self, incomplete_lock_fn: syn::ItemFn) -> syn::ItemFn; // TODO: use this improved interface instead
-    fn impl_lock_mutex(&self, app_info: &SubApp) -> TokenStream2;
+    /// Complete the implementation of the lock function for a resource proxy (this implementation will be called for each resource proxy).
+    /// The function signature and part of the function body are already given, do not change those, use them.
+    /// Use [eprintln()] to see the `incomplete_lock_fn` signature and already provided logic inside it.
+    fn impl_resource_proxy_lock(
+        &self,
+        app_args: &AppArgs,
+        app_info: &SubApp,
+        incomplete_lock_fn: syn::ImplItemFn,
+    ) -> syn::ImplItemFn;
+
+    /// (Optional) Customize how a task is dispatched when its interrupt is triggered.
+    /// An example for ARM MCUs with basepri register, could be that before making the call to execute the task `dispatch_task_call`
+    /// the value of basepri is saved before executing, and also restored after executing the task.
+    /// If this function is not implemented, the task will execute immediately when its bound interrupt is triggered.
+    fn custom_task_dispatch(
+        &self,
+        _task_prio: u16,
+        _dispatch_task_call: TokenStream2,
+    ) -> Option<TokenStream2> {
+        None
+    }
 
     /// Entry name for specific core
     /// This function is useful when there are multiple entries (multi-core app)
@@ -168,13 +184,15 @@ pub trait StandardPassImpl {
     /// Implementation for WFI (Wait for interrupt) instruction to be used in default idle task
     fn wfi(&self) -> Option<TokenStream2>;
 
-    /// Provide the path to the rexported microamp::shared attribute
+    /// Fill the body of the critical section function with hardware specific implementation.
+    /// Use [eprintln()] to see the `empty_body_fn` function signature.
+    fn impl_interrupt_free_fn(&self, empty_body_fn: syn::ItemFn) -> syn::ItemFn;
+
+    /// Provide the path to the re-exported microamp::shared macro attribute
     /// Example implementation can be
     /// ```rust
-    /// fn multibin_shared_crate_path() -> syn::Path {
-    ///     syn::parse_quote! {
-    ///         rtic::exports::microamp::shared
-    ///     }
+    /// fn multibin_shared_macro_path() -> syn::Path {
+    ///     syn::parse_quote! { rtic::exports::microamp::shared}
     /// }
     ///
     /// This will be used to generate the use statement:
@@ -182,5 +200,5 @@ pub trait StandardPassImpl {
     /// use rtic::exports::microamp::shared as multibin_shared
     /// ```
     #[cfg(feature = "multibin")]
-    fn multibin_shared_path() -> syn::Path;
+    fn multibin_shared_macro_path(&self) -> syn::Path;
 }
