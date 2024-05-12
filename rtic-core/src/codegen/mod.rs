@@ -122,9 +122,10 @@ impl<'a> CodeGen<'a> {
             let def_shared = shared.map(|shared| shared.generate_shared_resources_def());
             let shared_resources_handle = shared.map(SharedResources::name_uppercase);
             let shared_resources_handle = shared_resources_handle.iter();
-            let resource_proxies = app.shared.as_ref().map(|shared| {
-                shared.generate_resource_proxies(implementation, args, app)
-            });
+            let resource_proxies = app
+                .shared
+                .as_ref()
+                .map(|shared| shared.generate_resource_proxies(implementation, args, app));
 
             // priority masks
             let priority_masks = implementation.compute_lock_static_args(args, app, analysis);

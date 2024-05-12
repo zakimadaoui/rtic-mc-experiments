@@ -2,7 +2,7 @@ use proc_macro::TokenStream;
 use proc_macro2::{Ident, TokenStream as TokenStream2};
 use quote::{format_ident, quote};
 use rtic_auto_assign::AutoAssignPass;
-use rtic_core::{AppArgs, CompilationPass, RticAppBuilder, StandardPassImpl, SubAnalysis, SubApp};
+use rtic_core::{AppArgs, RticMacroBuilder, StandardPassImpl, SubAnalysis, SubApp};
 use syn::{parse_quote, ItemFn};
 
 extern crate proc_macro;
@@ -17,12 +17,12 @@ const MAX_TASK_PRIORITY: u16 = 0;
 #[proc_macro_attribute]
 pub fn app(args: TokenStream, input: TokenStream) -> TokenStream {
     // use the standard software pass provided by rtic-sw-pass crate
-    let sw_pass = Box::new(SoftwarePass::new(SwPassBackend));
+    let sw_pass = SoftwarePass::new(SwPassBackend);
 
-    let mut builder = RticAppBuilder::new(Rp2040Rtic);
-    builder.add_compilation_pass(CompilationPass::SwPass(sw_pass));
-    builder.add_compilation_pass(CompilationPass::Other(Box::new(AutoAssignPass)));
-    builder.build_rtic_application(args, input)
+    let mut builder = RticMacroBuilder::new(Rp2040Rtic);
+    builder.bind_pre_std_pass(AutoAssignPass); // run auto-assign pass first
+    builder.bind_pre_std_pass(sw_pass); // run software-pass second
+    builder.build_rtic_macro(args, input)
 }
 
 // =========================================== Trait implementations ===================================================

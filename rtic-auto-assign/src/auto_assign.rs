@@ -24,7 +24,7 @@ pub fn run(parsed_app: &mut App) -> syn::Result<()> {
         if task.core.is_some() {
             continue;
         } else if APP_CORES.load(Ordering::Relaxed) == 1 {
-            let _ = task.assign_core(0);
+            task.assign_core(0);
             continue;
         } else if task.shared_items.is_empty() {
             return Err(Error::ExplicitCoreNeeded(task_name.to_string()).into());
@@ -43,7 +43,7 @@ pub fn run(parsed_app: &mut App) -> syn::Result<()> {
         }
 
         // assign a core to task
-        let _ = task.assign_core(*assumed_core);
+        task.assign_core(*assumed_core);
     }
     Ok(())
 }

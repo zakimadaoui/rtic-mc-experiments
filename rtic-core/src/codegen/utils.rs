@@ -31,7 +31,7 @@ pub mod multibin {
         None
     }
 
-    /// If `multibin` feature is enabled, this returns a tokenstream for the attribute `#[cfg(not(core = "x"))]` 
+    /// If `multibin` feature is enabled, this returns a tokenstream for the attribute `#[cfg(not(core = "x"))]`
     /// Otherwise `None` is returned
     pub fn multibin_cfg_not_core(core: u32) -> Option<Attribute> {
         #[cfg(feature = "multibin")]

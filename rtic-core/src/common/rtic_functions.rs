@@ -24,14 +24,14 @@ pub(crate) fn get_resource_proxy_lock_fn(
     app_params: &AppArgs,
     app_info: &SubApp,
     resource: &SharedElement,
-    static_mut_shared_resources: &syn::Ident
+    static_mut_shared_resources: &syn::Ident,
 ) -> ImplItemFn {
     let ceiling = resource.priority;
     let resource_ident = &resource.ident;
     let lock_fn = parse_quote! {
         fn lock(&mut self, f: impl FnOnce(&mut Self::ResourceType)) {
             // `self` refers to the resource proxy struct
-            
+
             const CEILING: u16 = #ceiling; // resource priority ceiling
             let task_priority = self.task_priority; // running task priority
             let resource_ptr = unsafe { // get a mut pointer to the resource

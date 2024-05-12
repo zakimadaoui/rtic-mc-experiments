@@ -26,11 +26,10 @@ mod parser;
 
 static DEFAULT_TASK_PRIORITY: AtomicU16 = AtomicU16::new(0);
 
-pub struct RticAppBuilder {
+pub struct RticMacroBuilder {
     core: Box<dyn StandardPassImpl>,
-    sw_pass: Option<Box<dyn RticPass>>,
-    monotonics_pass: Option<Box<dyn RticPass>>,
-    other_passes: Vec<Box<dyn RticPass>>,
+    pre_std_passes: Vec<Box<dyn RticPass>>,
+    post_std_passes: Vec<Box<dyn RticPass>>,
 }
 pub trait RticPass {
     fn run_pass(
@@ -40,31 +39,26 @@ pub trait RticPass {
     ) -> syn::Result<(TokenStream2, ItemMod)>;
 }
 
-pub enum CompilationPass {
-    SwPass(Box<dyn RticPass>),
-    MonotonicsPass(Box<dyn RticPass>),
-    Other(Box<dyn RticPass>),
-}
-
-impl RticAppBuilder {
+impl RticMacroBuilder {
     pub fn new<T: StandardPassImpl + 'static>(core_impl: T) -> Self {
         Self {
             core: Box::new(core_impl),
-            monotonics_pass: None,
-            sw_pass: None,
-            other_passes: Vec::new(),
+            pre_std_passes: Vec::new(),
+            post_std_passes: Vec::new(),
         }
     }
 
-    pub fn add_compilation_pass(&mut self, pass: CompilationPass) {
-        match pass {
-            CompilationPass::SwPass(sw) => self.sw_pass = Some(sw),
-            CompilationPass::MonotonicsPass(mono) => self.monotonics_pass = Some(mono),
-            CompilationPass::Other(pass) => self.other_passes.push(pass),
-        }
+    pub fn bind_pre_std_pass<P: RticPass + 'static>(&mut self, pass: P) -> &mut Self {
+        self.pre_std_passes.push(Box::new(pass));
+        self
     }
 
-    pub fn build_rtic_application(self, args: TokenStream, input: TokenStream) -> TokenStream {
+    pub fn bind_post_std_pass<P: RticPass + 'static>(&mut self, pass: P) -> &mut Self {
+        self.post_std_passes.push(Box::new(pass));
+        self
+    }
+
+    pub fn build_rtic_macro(self, args: TokenStream, input: TokenStream) -> TokenStream {
         // init statics
         DEFAULT_TASK_PRIORITY.store(self.core.default_task_priority(), Ordering::Relaxed);
 
@@ -72,7 +66,7 @@ impl RticAppBuilder {
         let mut app_mod = parse_macro_input!(input as ItemMod);
 
         // Run extra passes first in the order of their insertion
-        for pass in self.other_passes {
+        for pass in self.pre_std_passes {
             let (out_args, out_mod) = match pass.run_pass(args, app_mod) {
                 Ok(out) => out,
                 Err(e) => return e.to_compile_error().into(),
@@ -80,16 +74,6 @@ impl RticAppBuilder {
             app_mod = out_mod;
             args = out_args;
         }
-
-        // software pass
-        let (args, app_mod) = if let Some(ref sw_pass) = self.sw_pass {
-            match sw_pass.run_pass(args, app_mod) {
-                Ok(out) => out,
-                Err(e) => return e.to_compile_error().into(),
-            }
-        } else {
-            (args, app_mod)
-        };
 
         // standard pass
         let mut parsed_app = match App::parse(args, app_mod) {
@@ -201,4 +185,9 @@ pub trait StandardPassImpl {
     /// ```
     #[cfg(feature = "multibin")]
     fn multibin_shared_macro_path(&self) -> syn::Path;
+
+    /// Make checks on the resulting parsed application and computed analysis before code generation phase is run.
+    fn pre_codgen_validation(&self, _app_args: &AppArgs, _app: &App, _analysis: &Analysis) -> syn::Result<()> {
+        Ok(())
+    }
 }
