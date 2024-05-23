@@ -36,7 +36,7 @@ impl<'a> CodeGen<'a> {
         let rest_of_code = &self.app.rest_of_code;
         let software_task_trait = format_ident!("{SWT_TRAIT_TY}");
         let sw_task_trait_def = quote! {
-            /// Trait for an idle task
+            /// Trait for a software task
             pub trait #software_task_trait {
                 type SpawnInput;
                 /// Task local variables initialization routine

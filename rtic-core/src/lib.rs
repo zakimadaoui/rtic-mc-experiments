@@ -155,9 +155,7 @@ pub trait StandardPassImpl {
         &self,
         _task_prio: u16,
         _dispatch_task_call: TokenStream2,
-    ) -> Option<TokenStream2> {
-        None
-    }
+    ) -> Option<TokenStream2>;
 
     /// Entry name for specific core
     /// This function is useful when there are multiple entries (multi-core app)

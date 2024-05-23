@@ -174,6 +174,14 @@ impl StandardPassImpl for Rp2040Rtic {
             _ => format_ident!("core{core}_entry"),
         }
     }
+
+    fn custom_task_dispatch(
+        &self,
+        _task_prio: u16,
+        _dispatch_task_call: TokenStream2,
+    ) -> Option<TokenStream2> {
+        None
+    }
 }
 
 struct SwPassBackend;
