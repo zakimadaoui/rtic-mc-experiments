@@ -1,1 +1,1 @@
-pub use heapless::spsc::Queue;
+pub use rtic_spsc::Queue;

@@ -10,7 +10,6 @@ bench = false
 
 [dependencies]
 
-heapless = { version = "0.8.0" }
 rtic-macro = { path = "rtic-macro" }
 rtic-sw-pass = { path = "../rtic-sw-pass", default-features = false }
 

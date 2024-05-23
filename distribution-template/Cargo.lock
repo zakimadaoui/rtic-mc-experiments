@@ -42,12 +42,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "byteorder"
-version = "1.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1fd0f2584146f6f2ef48085050886acf353beff7305ebd1ae69500e27c67f64b"
-
-[[package]]
 name = "cortex-m"
 version = "0.7.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -259,25 +253,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1d758ba1b47b00caf47f24925c0074ecb20d6dfcffe7f6d53395c0465674841a"
 
 [[package]]
-name = "hash32"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "47d60b12902ba28e2730cd37e95b8c9223af2808df9e902d4df49588d1470606"
-dependencies = [
- "byteorder",
-]
-
-[[package]]
-name = "heapless"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0bfb9eb618601c89945a70e254898da93b13be0388091d42117462b265bb3fad"
-dependencies = [
- "hash32",
- "stable_deref_trait",
-]
-
-[[package]]
 name = "heck"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -401,7 +376,6 @@ dependencies = [
  "defmt-rtt",
  "embedded-hal 0.2.7",
  "embedded-hal 1.0.0",
- "heapless",
  "microamp",
  "nb 0.1.3",
  "panic-halt",
@@ -416,7 +390,6 @@ dependencies = [
 name = "rtic-auto-assign"
 version = "0.1.0"
 dependencies = [
- "heapless",
  "heck 0.5.0",
  "proc-macro2",
  "quote",
@@ -450,14 +423,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "rtic-spsc"
+version = "0.1.0"
+
+[[package]]
 name = "rtic-sw-pass"
 version = "0.1.0"
 dependencies = [
- "heapless",
  "heck 0.5.0",
  "proc-macro2",
  "quote",
  "rtic-core",
+ "rtic-spsc",
  "syn 2.0.60",
 ]
 

@@ -10,8 +10,6 @@ bench = false
 
 [dependencies]
 cortex-m = "0.7.7"
-heapless = { version = "0.8.0" }
-#heapless = { version = "0.8.0", features = ["portable-atomic"] }
 rtic-macro = { path = "rp2040-rtic-macro" }
 rtic-sw-pass = {path = "../rtic-sw-pass", default-features = false}
 log = "0.4.21"
