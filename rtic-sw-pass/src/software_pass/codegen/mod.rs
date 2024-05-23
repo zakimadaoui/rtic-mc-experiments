@@ -67,7 +67,7 @@ impl<'a> CodeGen<'a> {
         let pend_fn_empty = parse_quote! {
             #[doc(hidden)]
             #[inline]
-            pub fn #pend_fn_ident(irq_nbr : u16) {
+            pub fn #pend_fn_ident<I: rtic::export::Interrupt>(irq_nbr : I) {
                 // To be implemented by distributor
                 // example:
                 // let irq : pac::Interrupt = unsafe { core::mem::transmute(irq_nbr) }
@@ -269,7 +269,7 @@ impl SoftwareTask {
                             // enqueue task to ready queue
                             unsafe {ready_producer.enqueue_unchecked(#prio_ty::#task_name)};
                             // pend dispatcher
-                            #pend_fn(#peripheral_crate::Interrupt::#dispatcher_irq_name as u16);
+                            #pend_fn(#peripheral_crate::Interrupt::#dispatcher_irq_name);
                             Ok(())
                         })
                     }
