@@ -82,7 +82,7 @@ impl<'a> CodeGen<'a> {
         let pend_fn_empty = parse_quote! {
             #[doc(hidden)]
             #[inline]
-            pub fn #pend_fn_ident(irq_nbr : u16, core: u32) {
+            pub fn #pend_fn_ident(irq_nbr : u16, core: u32) { // TODO: this function should return a result, as pending can fail in multicore !
                 // To be implemented by distributor
                 // How do you pend an interrupt on the other core ?
             }
