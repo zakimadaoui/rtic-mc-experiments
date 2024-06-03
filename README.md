@@ -19,12 +19,17 @@ An RTIC distribution is a proc-macro crate that exposes an RTIC framework **impl
 
 Each distribution will :
 
-- implement the missing hardware specific details and provide that to the generic RTIC code parsing and generation crates.
-- Integrate a selection of **compatible** `Compilation passes` and expose them to the user as a set of **features** which the user can select to enable.
+- (Stage 1) Implement the **low level hardware specific** details and provide/bind that to the hardware agnostic RTIC compilation passes (code parsing, analysis and generation).
+- (Stage 2) Integrate a selection of **compatible** `Compilation passes` and expose them to the user as a set of **features** which the user can select to enable.
+
+![stack](modular_arch.white.png)  
+
+- Stage 1 defines the abstractions to achieve separation between RTIC generic logic from low level hardware related details.
+- Stage 2 defines abstractions to allow modularity at syntax level. Higher level compilation passes (notice numbering in the diagram above, N is highest) perform code/model transformations that lower level passes can understand.
 
 This makes RTIC code-base growth more controllable and provides an alternative approach to the current one in which all the hardware specific details all belong to a single crate and an implementation for some specific hardware is chosen by enabling a corresponding rust feature. 
 
-**RTIC distributions** DO NOT re-implement the RTIC framework from scratch, instead they only provide the hardware specific parts of the implementation to `rtic-core` library  and other `compilation passes` crates/libraries that will do all the heavy lifting of parsing, analyzing and generating code .
+**RTIC distributions** DO NOT re-implement the RTIC framework from scratch, instead they only provide the low level / target use case specifics of the implementation to `rtic-core` library (containing the standard pass and utilities for binding other passes)  and other `compilation passes` crates/libraries that will do all the heavy lifting of parsing, analyzing and generating code.
 
 In this experiment project
 
@@ -32,13 +37,11 @@ In this experiment project
 
   - contains the **Hardware Tasks and Resources** pass which will be referred to as `THE STANDARD PASS`.
 
-  - Exposes an Builder API for loading other external passes (from 3rd party crates) and for externally providing hardware specific implementations to build an RTIC framework
-  - Note: `rtic-core` naming was chosen for lack of a better name. However, this library is completely different from the other `rtic-core` crate in the original RTIC project. 
+  - Exposes an Builder API for loading other external passes (from 3rd party crates) and for externally providing hardware specific implementations to build an RTIC framework 
 
 - `rtic-sw-pass` is the default crate that provides a software tasks pass. It does that by simply generating the necessary queues for message passing and then declaring the dispatchers as hardware tasks. Resource management and binding to interrupts and all other initialization steps will be taken care of by the hardware pass in`rtic-core`
 
-- `rp2040-rtic`: is an example RTIC distribution specific to the RP2040 which defines the rp2040 specific hardware details and provides them to  `rtic-core` , `rtic-sw-pass` and other compilation passes crates to create the desired distribution.  
-![stack](rp2040_rtic.png)  
+- `rp2040-rtic`: is an example RTIC distribution (multicore) specific to the RP2040 which defines the rp2040 specific hardware details and provides them to  `rtic-core` , `rtic-sw-pass` and other compilation passes crates to create the desired distribution.  
 
 - other passes like monotonics and automatic task assignment to cores pass will be described here later once they are implemented
 
