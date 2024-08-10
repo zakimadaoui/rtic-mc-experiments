@@ -47,10 +47,13 @@ pub mod my_app {
         )
         .ok()
         .unwrap();
+
+        // #[init_task]
+        // let TASK.write(TaskName::init(a, b, c,d));
     }
 
-    #[idle(core = 0)] 
-    struct MyIdleTask {
+    #[idle(core = 0)]
+    pub struct MyIdleTask {
         /* local resources */
         count: u32,
     }
@@ -69,7 +72,7 @@ pub mod my_app {
     }
 
     /// a Core0 task to be spawned by a task on Core1
-    #[sw_task(priority = 1, spawn_by = 1, core = 0)] 
+    #[sw_task(priority = 1, spawn_by = 1, core = 0)]
     struct Core0Task;
     impl RticSwTask for Core0Task {
         type SpawnInput = u32;

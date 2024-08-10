@@ -1,12 +1,12 @@
 use proc_macro2::TokenStream as TokenStream2;
-use quote::quote;
-use syn::{parse_quote, ImplItem};
+use quote::{quote, ToTokens};
+use syn::{parse_quote, ImplItem, ImplItemFn};
 
 use crate::{
     codegen::utils,
     multibin::{self, multibin_cfg_core, multibin_cfg_not_core},
     parser::ast::{HardwareTask, RticTask, SharedResources},
-    StandardPassImpl,
+    CorePassBackend,
 };
 
 impl RticTask {
@@ -17,6 +17,7 @@ impl RticTask {
         let task_static_handle = &self.name_uppercase();
         let task_struct = &self.task_struct;
         let task_impl = &self.struct_impl;
+
         #[cfg(feature = "multibin")]
         let task_impl = process_task_impl(task_impl, self.args.core);
 
@@ -24,12 +25,10 @@ impl RticTask {
         let shared_mod = shared_resources.map(|shared| shared.generate_shared_for_task(self));
         let current_current_fn = self.generate_current_core_fn();
         quote! {
-            //--------------------------------------------------------------------------------------
             #cfg_core
             static mut #task_static_handle: core::mem::MaybeUninit<#task_ty> = core::mem::MaybeUninit::uninit();
             #task_struct
 
-            // user implemented rtic task trait
             #task_impl
 
             #task_prio_impl
@@ -38,10 +37,14 @@ impl RticTask {
         }
     }
 
-    pub fn task_init_call(&self) -> TokenStream2 {
+    pub fn task_init_call(&self) -> Option<TokenStream2> {
+        if self.user_initializable {
+            // it is user responsibility to initialize task, and this is enforced at compiler time
+            return None;
+        }
         let task_ty = &self.name();
         let task_static_handle = &self.name_uppercase();
-        quote! { #task_static_handle.write(#task_ty::init()); }
+        Some(quote! { #task_static_handle.write(#task_ty::init(())); })
     }
 
     fn generate_priority_func(&self) -> TokenStream2 {
@@ -95,7 +98,9 @@ fn process_task_impl(task_impl: &syn::ItemImpl, core: u32) -> TokenStream2 {
     quote! {
         #cfg_core
         #task_impl
+
         #not_cfg_core
+        #[allow(unused)]
         #emptied_task_impl
     }
 }
@@ -104,7 +109,7 @@ impl HardwareTask {
     /// Generates task definition, Context struct, resource proxies and binds task to appropriate interrupt
     pub fn generate_hw_task_to_irq_binding(
         &self,
-        implementation: &dyn StandardPassImpl,
+        implementation: &dyn CorePassBackend,
     ) -> Option<TokenStream2> {
         let cfg_core = multibin::multibin_cfg_core(self.args.core);
         let task_static_handle = &self.name_uppercase();
@@ -115,7 +120,7 @@ impl HardwareTask {
         };
 
         let task_dispatch_call = implementation
-            .custom_task_dispatch(self.args.priority, defaut_task_dispatch_call.clone())
+            .wrap_task_execution(self.args.priority, defaut_task_dispatch_call.clone())
             .unwrap_or(defaut_task_dispatch_call);
 
         Some(quote! {
@@ -126,5 +131,73 @@ impl HardwareTask {
                 #task_dispatch_call
             }
         })
+    }
+
+    /// If the type InitArgs is not implement it generate a default implementation
+    /// If the type InitArgs is implemented, generate a custom initialization function for the task
+    pub fn adjust_task_impl_initialization(&mut self) -> syn::Result<()> {
+        let task_impl = &mut self.struct_impl;
+        let target_task = &task_impl.self_ty;
+        let task_trait_path = if let Some((_, path, _)) = &task_impl.trait_ {
+            path
+        } else {
+            unreachable!(
+                "This ItemImpl must correspond to a task trait implementation for `{}` ",
+                task_impl.to_token_stream().to_string()
+            )
+        };
+
+        let default_init_type_def: syn::ImplItemType = parse_quote!(
+            type InitArgs = ();
+        );
+        let init_args_type = task_impl.items.iter().find_map(|item| {
+            let ImplItem::Type(t) = item else { return None };
+            if t == &default_init_type_def {
+                return Some((t, true));
+            } else if t.ident == "InitArgs" {
+                Some((t, false))
+            } else {
+                None
+            }
+        });
+
+        match init_args_type {
+            Some((_, false)) => {
+                // user implements custom type
+                self.user_initializable = true;
+
+                return Ok(());
+            }
+            None => {
+                // user implicitly asks for implementing unit type from rtic
+                task_impl.items.push(ImplItem::Type(default_init_type_def))
+            }
+            Some((_, true)) => { // user implements unit type
+            }
+        }
+
+        // find the init function and correct its signature
+        let init_fn = task_impl
+            .items
+            .iter_mut()
+            .find_map(|item| {
+                let ImplItem::Fn(f) = item else { return None };
+                if f.sig.ident == "init" {
+                    Some(f)
+                } else {
+                    None
+                }
+            })
+            .expect(&format!(
+                "The {} trait implementation of {} must include an init() method",
+                task_trait_path.to_token_stream().to_string(),
+                target_task.to_token_stream().to_string()
+            ));
+
+        let default_init: ImplItemFn = parse_quote!(
+            fn init(_: ()) -> Self {}
+        );
+        init_fn.sig = default_init.sig; // correct the signature
+        Ok(())
     }
 }

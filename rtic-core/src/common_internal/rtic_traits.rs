@@ -2,7 +2,7 @@ use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 
 pub const HWT_TRAIT_TY: &str = "RticTask";
-pub const SWT_TRAIT_TY: &str = "RticSwTask"; // TODO: this needs to be removed from rtic-core, it belongs to sw-pass
+pub const SWT_TRAIT_TY: &str = "RticSwTask"; // FIXME: add a backend trait method to provide a list of additional traits that define task types instead of this wrong way of borrowing from sw pass implicitly !
 pub const IDLE_TRAIT_TY: &str = "RticIdleTask";
 
 pub const MUTEX_TY: &str = "RticMutex";
@@ -26,8 +26,10 @@ fn hw_task_trait() -> TokenStream2 {
     quote! {
         /// Trait for a hardware task
         pub trait #hw_task {
+            /// Associated type that can be used to make [Self::init] take arguments
+            type InitArgs;
             /// Task local variables initialization routine
-            fn init() -> Self;
+            fn init(args: Self::InitArgs) -> Self;
             /// Function to be bound to a HW Interrupt
             fn exec(&mut self);
         }
@@ -39,8 +41,10 @@ fn idle_task_trait() -> TokenStream2 {
     quote! {
         /// Trait for an idle task
         pub trait #idle_task {
+            /// Associated type that can be used to make [Self::init] take arguments
+            type InitArgs;
             /// Task local variables initialization routine
-            fn init() -> Self;
+            fn init(args: Self::InitArgs) -> Self;
             /// Function to be executing when no other task is running
             fn exec(&mut self) -> !;
         }

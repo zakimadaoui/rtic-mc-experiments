@@ -7,19 +7,20 @@ use std::sync::atomic::Ordering;
 use proc_macro2::{Ident, TokenStream as TokenStream2};
 use syn::{parse_macro_input, ItemMod};
 
-pub use common::rtic_functions;
-pub use common::rtic_traits;
+pub use common_internal::rtic_functions;
+pub use common_internal::rtic_traits;
 
-use crate::analysis::Analysis;
-pub use crate::analysis::SubAnalysis;
-pub use crate::codegen::multibin;
-use crate::codegen::CodeGen;
-pub use crate::parser::ast::AppArgs;
-pub use crate::parser::{App, SubApp};
+pub use analysis::{Analysis, SubAnalysis};
+pub use backend::CorePassBackend;
+pub use codegen::multibin;
+use codegen::CodeGen;
+pub use parser::ast::AppArgs;
+pub use parser::{App, SubApp};
 
 mod analysis;
+mod backend;
 mod codegen;
-mod common;
+mod common_internal;
 pub mod parse_utils;
 
 mod parser;
@@ -27,7 +28,7 @@ mod parser;
 static DEFAULT_TASK_PRIORITY: AtomicU16 = AtomicU16::new(0);
 
 pub struct RticMacroBuilder {
-    core: Box<dyn StandardPassImpl>,
+    core: Box<dyn CorePassBackend>,
     pre_std_passes: Vec<Box<dyn RticPass>>,
     post_std_passes: Vec<Box<dyn RticPass>>,
 }
@@ -39,203 +40,8 @@ pub trait RticPass {
     ) -> syn::Result<(TokenStream2, ItemMod)>;
 }
 
-/// Interface for providing hw/architecture specific details for implementing the standard tasks and resources pass both
-/// for single core and multicore systems.
-pub trait StandardPassImpl {
-    /// Returns the default task priority to be used in idle task and tasks where priority argument is not mentioned
-    fn default_task_priority(&self) -> u16;
-
-    /// Return the code to be inserted AFTER the call to Global #[init] annotated function and task specific init() functions, and BEFORE starting the idle task.
-    /// ## Use case
-    /// This trait method is meant to cover the following use cases:
-    /// - enabling interrupt lines used by the application
-    /// - setting priority of interrupts, and similar initializations depending on specific hardware details
-    /// - multicore systems where a master core needs to wake-up and initialize other cores (see rp2040 distribution as an example)
-    /// ## Note
-    /// This function will be called several times in case of a multicore system, each time with different `app_info` and `app_analysis`.
-    /// ## Arguments
-    /// - `app_args`: arguments provided to the #[app(...)] macro attribute, this includes paths to PACs, number of cores...
-    /// - `app_info`: Contains the parsed user application. For single core this will be the full application.
-    /// For multicore, this represents only a sub-application corresponding to a specific core.
-    /// - `app_analysis`: Information about the analyzed application. For single core this will be the analysis of the full application.
-    /// For multicore, this represents the analysis of a sub-application corresponding to a specific core.
-    fn post_init(
-        &self,
-        app_args: &AppArgs,
-        app_info: &SubApp,
-        app_analysis: &SubAnalysis,
-    ) -> Option<TokenStream2>;
-
-    /// LOCKING PART I: first utility for generating code to be used for implementing the locking mechanism of resource proxies.
-    ///
-    /// See [StandardPassImpl::impl_resource_proxy_lock] documentation for understanding what resource proxies are.
-    ///
-    /// ## Use case
-    /// This trait method can be used for generating code of static variables, `use` statements or any other global declarations
-    /// to be used for implementing the locking mechanism of a resource proxy.
-    /// An example use case could be a cortex M0/M0+ based MCU, where locking is implemented using Interrupt priority masking,
-    /// and the masks are computed statically. The masks computation can and should use the information provided by
-    /// `app_args`, `app_info` and `app_analysis` arguments.
-    ///
-    /// For a real example, see the rp2040 distribution.
-    ///
-    /// ## Note
-    /// This function will be called several times in case of a multicore system, each time with different `app_info` and `app_analysis`.
-    ///
-    /// ## Arguments
-    /// - `app_args`: arguments provided to the #[app(...)] macro attribute, this includes paths to PACs, number of cores...
-    /// - `app_info`: Contains the parsed user application. For single core this will be the full application.
-    /// For multicore, this represents only a sub-application corresponding to a specific core.
-    /// - `app_analysis`: Information about the analyzed application. For single core this will be the analysis of the full application.
-    /// For multicore, this represents the analysis of a sub-application corresponding to a specific core.
-    fn compute_lock_static_args(
-        &self,
-        app_args: &AppArgs,
-        app_info: &SubApp,
-        app_analysis: &SubAnalysis,
-    ) -> Option<TokenStream2>;
-
-    /// LOCKING PART II: second utility for generating code to be used for implementing the locking mechanism of resource proxies.
-    ///
-    /// ## Resource proxies
-    /// Every shared resource element in the struct annotated with `#[shared]` attribute has a corresponding
-    /// autogenerated resource proxy struct that looks like follows:
-    ///
-    /// ```rust
-    /// struct __resource1_mutex {
-    ///     #[doc(hidden)]
-    ///     task_priority: u16,
-    /// }
-    /// impl RticMutex for __resource1_mutex {
-    ///     type ResourceType = Resource1;
-    ///     // this is what the trait method argument `incomplete_lock_fn` expands to
-    ///     fn lock(&mut self, f: impl FnOnce(&mut Self::ResourceType)) {
-    ///         const CEILING: u16 = 3u16;
-    ///         let task_priority = self.task_priority;
-    ///         let resource_ptr = unsafe { &mut SHARED_RESOURCES.assume_init_mut().resource1 as *mut _ };
-    ///         /* YOUR HARDWARE DEPENDENT CODE COMES HERE FOR IMPLEMENTING LOCKING */
-    ///     }
-    /// }
-    /// ```
-    ///
-    /// ## Note
-    /// This trait method is called for every shared resource in every sub-application.
-    ///
-    /// ## Contract and Usage
-    /// A distribution must complete the implementation of the lock function (see above) for every resource proxy.
-    /// The function signature and part of the function body are already given by the `incomplete_lock_fn` argument.
-    /// - You MUST not change the function signature
-    /// - You SHOULD (but not a must) use the first 3 provided statements in the incomplete function body.
-    ///
-    /// ## Debugging Tip
-    /// Use `eprintln("{}", incomplete_lock_fn.to_tokenstream().to_string())` to see the `incomplete_lock_fn` signature and already provided logic inside it.
-    fn impl_resource_proxy_lock(
-        &self,
-        app_args: &AppArgs,
-        app_info: &SubApp,
-        incomplete_lock_fn: syn::ImplItemFn,
-    ) -> syn::ImplItemFn;
-
-    /// Optionally customize what happens before and after a task [exec()] method is called when its corresponding interrupt is triggered.
-    ///
-    /// ## Use case
-    /// Some systems need to run a custom logic right at the start when an task interrupt is triggered and also at the very end
-    /// after the task [exec()] method is called. An example could be cortex M MCUs that have a BASEPRI register. Every time an
-    /// interrupt executes, the current value of BASEPRI needs to be saved, then task [exec()] method is called,
-    /// then the saved BASEPRI value is restored.
-    ///
-    /// ## Arguments
-    /// - `dispatch_task_call`: call to the task [exec()] method.
-    ///
-    /// ## Contract
-    /// The `dispatch_task_call` token stream must be placed in between your custom logic.
-    fn custom_task_dispatch(
-        &self,
-        task_prio: u16, // TODO: more information needs to be provided here to cover more complex cases
-        dispatch_task_call: TokenStream2,
-    ) -> Option<TokenStream2>;
-
-    /// Entry name for a specific core
-    /// This function is especially useful for multicore applications that result in a single output binary
-    /// where there are multiple entries (one for each core) but only one entry needs to be named `main`.
-    ///
-    /// See rp2040 distribution for an example.
-    ///
-    /// By default you should implement this function as
-    /// ```rust
-    /// fn entry_name(&self, core: u32) -> Ident {
-    ///     format_ident!("main")
-    /// }
-    /// ```
-    ///
-    fn entry_name(&self, core: u32) -> Ident;
-
-    /// Optionally provide a call to WFI (Wait for interrupt) instruction to be used in the body of the default idle task.
-    /// If none is returned, and the user doesn't define an idle task, then, a default idle task will be generated with
-    /// an infinite loop that has an empty body (this will waste a lot of cycles !).
-    ///
-    /// ## Tip
-    /// You can also use this function to return another instruction or even code different from `wfi` call
-    /// that can be used to populate the body of the loop inside the default idle function.
-    fn wfi(&self) -> Option<TokenStream2>;
-
-    /// Provide the implementation/body of the critical section function implementation to be used internally
-    /// by RTIC, when generated code needs to be executed a critical section
-    ///
-    /// The `empty_body_fn` argument, is a token stream for a function that expands to the following:
-    /// ```rust
-    /// #[inline]
-    /// pub fn __rtic_critical_section<F, R>(f: F) -> R
-    /// where F: FnOnce() -> R,
-    /// {
-    ///    /* You need to fill this part here */
-    /// }
-    /// ```
-    ///
-    /// ## Contract and Usage
-    /// A distribution must complete the implementation of the __rtic_critical_section() function (see above).
-    /// The function signature the function with an empty body are already given by the `empty_body_fn` argument.
-    /// - You MUST not change the function signature
-    /// - The generated function must enable interrupts at end of the critical section. This is because interrupts are the
-    /// core to RTIC functionality, so there is no point in exising a critical section and restoring interrupts state to
-    /// a disables state.
-    fn impl_interrupt_free_fn(&self, empty_body_fn: syn::ItemFn) -> syn::ItemFn;
-
-    /// Provide the path to the re-exported microamp::shared macro attribute
-    /// Example implementation can be
-    /// ```rust
-    /// fn multibin_shared_macro_path() -> syn::Path {
-    ///     syn::parse_quote! { rtic::exports::microamp::shared}
-    /// }
-    ///
-    /// This will be used to generate the use statement:
-    /// ```rust
-    /// use rtic::exports::microamp::shared as multibin_shared;
-    ///
-    /// where multibin_shared is the proc macro attribute used to indicate shared data across cores
-    /// ```
-    #[cfg(feature = "multibin")]
-    fn multibin_shared_macro_path(&self) -> syn::Path;
-
-    /// Implement this method to make validate the resulting parsed and analyzed user application (full application view in both single and multi core systems)
-    /// before code generation phase is starts.
-    ///
-    /// ## Use case
-    /// In certain cases, some checks/validation related to implementation/hardware specific details need to be made before allowing the user code to expand. An example, could be that
-    /// The user has used an Exception Interrupt as a dispatcher, but the distribution needs to forbid that. Implementing this trait method, gives you
-    /// the ability to make such checks.
-    fn pre_codgen_validation(
-        &self,
-        _app_args: &AppArgs,
-        _app: &App,
-        _analysis: &Analysis,
-    ) -> syn::Result<()> {
-        Ok(())
-    }
-}
-
 impl RticMacroBuilder {
-    pub fn new<T: StandardPassImpl + 'static>(core_impl: T) -> Self {
+    pub fn new<T: CorePassBackend + 'static>(core_impl: T) -> Self {
         Self {
             core: Box::new(core_impl),
             pre_std_passes: Vec::new(),
@@ -243,12 +49,12 @@ impl RticMacroBuilder {
         }
     }
 
-    pub fn bind_pre_std_pass<P: RticPass + 'static>(&mut self, pass: P) -> &mut Self {
+    pub fn bind_pre_core_pass<P: RticPass + 'static>(&mut self, pass: P) -> &mut Self {
         self.pre_std_passes.push(Box::new(pass));
         self
     }
 
-    pub fn bind_post_std_pass<P: RticPass + 'static>(&mut self, pass: P) -> &mut Self {
+    pub fn bind_post_core_pass<P: RticPass + 'static>(&mut self, pass: P) -> &mut Self {
         self.post_std_passes.push(Box::new(pass));
         self
     }
@@ -270,7 +76,7 @@ impl RticMacroBuilder {
             args = out_args;
         }
 
-        // standard pass
+        // core pass
         let mut parsed_app = match App::parse(args, app_mod) {
             Ok(parsed) => parsed,
             Err(e) => return e.to_compile_error().into(),

@@ -3,7 +3,7 @@ mod utils;
 use crate::software_pass::analyze::{Analysis, SubAnalysis};
 use crate::software_pass::parse::ast::SoftwareTask;
 use crate::software_pass::parse::{App, SWT_TRAIT_TY};
-use crate::SoftwarePassImpl;
+use crate::SwPassBackend;
 use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote};
 use rtic_core::multibin;
@@ -12,15 +12,11 @@ use syn::{parse_quote, ItemFn, ItemMod, LitInt, Meta, Path};
 pub struct CodeGen<'a> {
     app: App,
     analysis: Analysis,
-    implementation: &'a dyn SoftwarePassImpl,
+    implementation: &'a dyn SwPassBackend,
 }
 
 impl<'a> CodeGen<'a> {
-    pub fn new(
-        app: App,
-        analysis: Analysis,
-        implementation: &'a dyn SoftwarePassImpl,
-    ) -> CodeGen<'a> {
+    pub fn new(app: App, analysis: Analysis, implementation: &'a dyn SwPassBackend) -> CodeGen<'a> {
         Self {
             app,
             analysis,
@@ -38,9 +34,10 @@ impl<'a> CodeGen<'a> {
         let sw_task_trait_def = quote! {
             /// Trait for a software task
             pub trait #software_task_trait {
+                type InitArgs;
                 type SpawnInput;
                 /// Task local variables initialization routine
-                fn init() -> Self;
+                fn init(args: Self::InitArgs) -> Self;
                 /// Function to be executing when the scheduled software task is dispatched
                 fn exec(&mut self, input: Self::SpawnInput);
             }
@@ -67,14 +64,14 @@ impl<'a> CodeGen<'a> {
         let pend_fn_empty = parse_quote! {
             #[doc(hidden)]
             #[inline]
-            pub fn #pend_fn_ident(irq_nbr : u16) {
+            pub fn #pend_fn_ident(irq_nbr : u16) { //TODO: change this to standard embedded rust type Interrupt...
                 // To be implemented by distributor
                 // example:
                 // let irq : pac::Interrupt = unsafe { core::mem::transmute(irq_nbr) }
                 // NVIC::pend( irq );
             }
         };
-        self.implementation.impl_pend_fn(pend_fn_empty)
+        self.implementation.generate_local_pend_fn(pend_fn_empty)
     }
 
     fn get_cross_pend_fn(&self) -> Option<ItemFn> {
@@ -87,7 +84,7 @@ impl<'a> CodeGen<'a> {
                 // How do you pend an interrupt on the other core ?
             }
         };
-        self.implementation.impl_cross_pend_fn(pend_fn_empty)
+        self.implementation.generate_cross_pend_fn(pend_fn_empty)
     }
 
     fn generate_subapps(&mut self) -> TokenStream {
@@ -228,8 +225,8 @@ fn generate_dispatcher_tasks(sub_analysis: &SubAnalysis) -> TokenStream {
     }
 }
 
-pub const SC_PEND_FN_NAME: &str = "__rtic_sc_pend"; // function name for core-local pending
-pub const MC_PEND_FN_NAME: &str = "__rtic_mc_pend"; // function name for cross-core pending
+pub const SC_PEND_FN_NAME: &str = "__rtic_local_irq_pend"; // function name for core-local pending
+pub const MC_PEND_FN_NAME: &str = "__rtic_cross_irq_pend"; // function name for cross-core pending
 
 impl SoftwareTask {
     /// generate the spawn() function for the task

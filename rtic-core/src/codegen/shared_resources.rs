@@ -1,10 +1,10 @@
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 
-use crate::common::rtic_traits::MUTEX_TY;
+use crate::rtic_traits::MUTEX_TY;
 use crate::parser::ast::{RticTask, SharedResources};
 use crate::rtic_functions::get_resource_proxy_lock_fn;
-use crate::{multibin, AppArgs, StandardPassImpl, SubApp};
+use crate::{multibin, AppArgs, CorePassBackend, SubApp};
 
 impl SharedResources {
     pub fn generate_shared_resources_def(&self) -> TokenStream2 {
@@ -23,7 +23,7 @@ impl SharedResources {
 
     pub fn generate_resource_proxies(
         &self,
-        implementor: &dyn StandardPassImpl,
+        implementor: &dyn CorePassBackend,
         app_params: &AppArgs,
         app_info: &SubApp,
     ) -> TokenStream2 {

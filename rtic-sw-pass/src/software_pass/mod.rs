@@ -11,11 +11,11 @@ use rtic_core::RticPass;
 use syn::ItemMod;
 
 pub struct SoftwarePass {
-    implementation: Box<dyn SoftwarePassImpl>,
+    implementation: Box<dyn SwPassBackend>,
 }
 
 impl SoftwarePass {
-    pub fn new<T: SoftwarePassImpl + 'static>(implementation: T) -> Self {
+    pub fn new<T: SwPassBackend + 'static>(implementation: T) -> Self {
         Self {
             implementation: Box::new(implementation),
         }
@@ -32,13 +32,18 @@ impl RticPass for SoftwarePass {
     }
 }
 
-/// Interface for providing the hardware specific details needed by the software pass
-pub trait SoftwarePassImpl {
-    /// Provide the implementation/body of the core local interrupt pending function. (implementation is hardware dependent)
+/// Interface for providing the hardware specific details (i.e backend) needed by the software pass
+pub trait SwPassBackend {
+    /// Implementation of this trait method must populate the body of `empty_body_fn' with the low-level implementation 
+    /// to generate the core-local interrupt pending function.
+    /// The resulting interrupt pending function will be used for implementing the `spawn` method of core-local software tasks
     /// You can use [eprintln()] to see the `empty_body_fn` function signature
-    fn impl_pend_fn(&self, empty_body_fn: syn::ItemFn) -> syn::ItemFn;
+    fn generate_local_pend_fn(&self, empty_body_fn: syn::ItemFn) -> syn::ItemFn;
 
-    /// (Optionally) Provide the implementation/body of the cross-core interrupt pending function. (implementation is hardware dependent)
+    /// Implementation of this trait method must populate the body of `empty_body_fn' with the low-level implementation 
+    /// to generate the cross-core interrupt pending function.
+    /// The resulting interrupt pending function will be used for implementing the `spawn` method of cross-core software tasks (software
+    /// tasks assigned to run on a specific core, but are "spawned by" another core)
     /// You can use [eprintln()] to see the `empty_body_fn` function signature
-    fn impl_cross_pend_fn(&self, empty_body_fn: syn::ItemFn) -> Option<syn::ItemFn>;
+    fn generate_cross_pend_fn(&self, empty_body_fn: syn::ItemFn) -> Option<syn::ItemFn>;
 }

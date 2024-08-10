@@ -1,9 +1,11 @@
+use proc_macro2::Span;
 use syn::spanned::Spanned;
+use syn::Ident;
 
 use crate::parser::ast::{HardwareTask, SharedResources};
 use crate::parser::SubApp;
 use crate::App;
-
+use heck::ToSnakeCase;
 pub struct Analysis {
     pub sub_analysis: Vec<SubAnalysis>,
 }
@@ -23,6 +25,8 @@ impl Analysis {
 pub struct SubAnalysis {
     // used interrupts and their priorities
     pub used_irqs: Vec<(syn::Ident, u16)>,
+    // tasks requiring some late local resource initialization.
+    pub late_resource_tasks: Vec<LateResourceTask>,
 }
 
 impl SubAnalysis {
@@ -34,8 +38,24 @@ impl SubAnalysis {
             .filter_map(|t| Some((t.args.interrupt_handler_name.clone()?, t.args.priority)))
             .collect();
 
+        let user_initializable_tasks = app
+            .tasks
+            .iter()
+            .chain(app.idle.iter()) // idle is also a task and we shouldn't forget it
+            .filter_map(|t| {
+                if t.user_initializable {
+                    Some(LateResourceTask {
+                        task_name: t.task_struct.ident.clone(),
+                    })
+                } else {
+                    None
+                }
+            })
+            .collect();
+
         Ok(Self {
             used_irqs: used_interrupts,
+            late_resource_tasks: user_initializable_tasks,
         })
     }
 }
@@ -64,4 +84,21 @@ pub fn update_resource_priorities(
         }
     }
     Ok(())
+}
+
+#[derive(Debug)]
+pub struct LateResourceTask {
+    pub task_name: Ident,
+}
+impl LateResourceTask {
+    /// By convention, this method is used to generate the name of the static task instance
+    pub fn name_uppercase(&self) -> Ident {
+        let name = self.task_name.to_string().to_snake_case().to_uppercase();
+        Ident::new(&name, Span::call_site())
+    }
+
+    pub fn name_snakecase(&self) -> Ident {
+        let name = self.task_name.to_string().to_snake_case();
+        Ident::new(&name, Span::call_site())
+    }
 }

@@ -5,7 +5,7 @@ use syn::{spanned::Spanned, Ident, Item, ItemFn, ItemImpl, ItemStruct, ItemUse, 
 
 use ast::*;
 
-use crate::common::rtic_traits::{HWT_TRAIT_TY, IDLE_TRAIT_TY, SWT_TRAIT_TY};
+use crate::common_internal::rtic_traits::{HWT_TRAIT_TY, IDLE_TRAIT_TY, SWT_TRAIT_TY};
 
 pub mod ast;
 
@@ -203,11 +203,14 @@ impl App {
                     ))?;
 
             let tasks = out.entry(args.core).or_insert_with(Vec::new);
-            tasks.push(RticTask {
+            let mut task = RticTask {
                 args,
                 task_struct,
                 struct_impl: struct_impl.clone(),
-            });
+                user_initializable: false, //initially this is false.
+            };
+            task.adjust_task_impl_initialization()?; // adjust the init method and args type of the task trait implementation
+            tasks.push(task);
         }
         Ok(out)
     }
@@ -231,15 +234,15 @@ impl App {
                 // remove the #[idle]
                 let attrs = idle_struct.attrs.remove(init_attr_idx);
                 let args = TaskArgs::parse(attrs.meta)?;
-
-                Ok((
-                    args.core,
-                    IdleTask {
-                        args,
-                        task_struct: idle_struct,
-                        struct_impl: struct_impl.clone(),
-                    },
-                ))
+                let core = args.core;
+                let mut task = IdleTask {
+                    args,
+                    task_struct: idle_struct,
+                    struct_impl: struct_impl.clone(),
+                    user_initializable: false,
+                };
+                task.adjust_task_impl_initialization()?; // adjust the init method and args type of the task trait implementation
+                Ok((core, task))
             })
             .collect::<Result<HashMap<_, _>, syn::Error>>()
     }

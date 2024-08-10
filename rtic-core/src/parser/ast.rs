@@ -132,6 +132,7 @@ pub struct RticTask {
     pub args: TaskArgs,
     pub task_struct: ItemStruct,
     pub struct_impl: ItemImpl,
+    pub user_initializable: bool, // whether user should manually initialize this task during init
 }
 
 impl RticTask {
@@ -139,6 +140,7 @@ impl RticTask {
         &self.task_struct.ident
     }
 
+    /// By convention, this method is used to generate the name of the static task instance
     pub fn name_uppercase(&self) -> Ident {
         let name = self
             .task_struct

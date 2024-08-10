@@ -1,7 +1,8 @@
-use std::collections::HashMap;
+//! Provides a utility to streamline parsing and manipulating and reconstructing the tokenstream representation of the #[app(arg1="val1", ...)] attribute
 
 use proc_macro2::{Punct, Spacing, TokenStream as TokenStream2};
 use quote::{format_ident, quote, ToTokens, TokenStreamExt};
+use std::collections::HashMap;
 use syn::{parse::Parser, parse_quote, Attribute, Meta};
 
 #[derive(Debug)]
@@ -11,6 +12,7 @@ pub struct RticAttr {
 }
 
 impl RticAttr {
+    /// Parse a #[app(arg1="val1", ...)] macro attribute
     pub fn parse_from_attr(attribute: &Attribute) -> syn::Result<Self> {
         match attribute.meta {
             Meta::Path(ref path) => {
@@ -40,6 +42,7 @@ impl RticAttr {
         }
     }
 
+    /// Parse the tokenstream representation of the arguments of an #[app(arg1="val1", ...)] macro attribute
     pub fn parse_from_tokens(tokens: &TokenStream2) -> syn::Result<Self> {
         let mut elements = HashMap::new();
         syn::meta::parser(|meta| {
@@ -59,6 +62,7 @@ impl RticAttr {
 }
 
 impl ToTokens for RticAttr {
+    /// Reconstruct the tokenstream representation of #[app(arg1="val1", ...)] macro attribute from the internal state of [Self] 
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         let args = self.elements.iter().map(|(name, value)| {
             let name = format_ident!("{name}");
