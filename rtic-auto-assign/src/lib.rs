@@ -20,4 +20,8 @@ impl RticPass for AutoAssignPass {
         let code = CodeGen::new(parsed).run();
         Ok((args, code))
     }
+    
+    fn pass_name(&self) -> &str {
+        "AutoAssign"
+    }
 }

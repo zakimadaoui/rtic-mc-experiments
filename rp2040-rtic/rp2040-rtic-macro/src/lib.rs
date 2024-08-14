@@ -185,7 +185,6 @@ impl CorePassBackend for Rp2040Rtic {
 
     fn pre_codgen_validation(
         &self,
-        _app_args: &AppArgs,
         _app: &rtic_core::App,
         _analysis: &rtic_core::Analysis,
     ) -> syn::Result<()> {

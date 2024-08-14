@@ -11,8 +11,16 @@ pub struct Analysis {
 }
 
 impl Analysis {
-    pub fn run(app: &App) -> syn::Result<Self> {
-        let sub_analysis = app
+    /// - updates resource ceilings
+    /// - collects and structure key information about the user application to be used during code generation 
+    pub fn run(parsed_app: &mut App) -> syn::Result<Self> {
+        // update resource ceilings
+        for app in parsed_app.sub_apps.iter_mut() {
+            update_resource_priorities(app.shared.as_mut(), &app.tasks)?;
+        }
+
+        // collect and structure key information about the user application to be used during code generation 
+        let sub_analysis = parsed_app
             .sub_apps
             .iter()
             .map(SubAnalysis::run)
@@ -60,7 +68,7 @@ impl SubAnalysis {
     }
 }
 
-pub fn update_resource_priorities(
+fn update_resource_priorities(
     shared: Option<&mut SharedResources>,
     hw_tasks: &[HardwareTask],
 ) -> syn::Result<()> {

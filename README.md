@@ -1,4 +1,5 @@
-# Modular RTIC and POC for a multi-core extension on rp2040
+# RTIC Evolution: Multicore support, Distributions and compilations passes
+
 
 **Project Objective:** 
 
@@ -49,10 +50,8 @@ In this experiment project
 
 ### More
 
-- [Modular rtic Implementation details + Example single core rp2040 rtic application](modular_rtic_impl.md)
-- [Multicore rtic declarative model](rtic_mc.md)
-- [Steps of porting the single core implementation to multi-core](rtic_mc_steps.md)
-- [uAMP integration and initial multi-binary support for multi-core RTIC applications](microamp_integration.md)
+- [Multicore rtic application example](rtic_mc.md)
+- [Rust code documentation](https://zakimadaoui.github.io/rtic-mc-experiments/)
 
 ### Other useful links
 - [single core rtic application example](rp2040-rtic/examples/hello_rtic.rs) 

@@ -25,7 +25,6 @@ pub mod my_app {
     // be linked)
 
     use embedded_hal::digital::v2::OutputPin;
-    // use panic_halt as _;
     use rp2040_hal::pac::{self};
 
     type LedOutPin = Pin<Gpio25, FunctionSio<SioOutput>, PullDown>;
@@ -82,7 +81,7 @@ pub mod my_app {
         )
     }
 
-    #[task(binds = TIMER_IRQ_0 , priority = 3, )]
+    #[task(binds = TIMER_IRQ_0 , priority = 3)]
     struct Blinker {
         /* local resources */
         is_high: bool,

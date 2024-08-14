@@ -1,8 +1,8 @@
 
 use super::*;
 
-/// Interface for providing hw/architecture specific details (i.e backend) for implementing the core tasks and resources pass both
-/// for single core and multicore systems.
+/// Interface for providing the low-level hardware bindings specific for a target(s) (A.k.a The Backend) to be used during code generation phase 
+/// of the **Core Compilation Pass*. 
 pub trait CorePassBackend {
     
     /// # Setting up the system
@@ -221,7 +221,6 @@ pub trait CorePassBackend {
     /// Implementing this trait method, gives the ability to enforcing such checks.
     fn pre_codgen_validation(
         &self,
-        app_args: &AppArgs,
         app: &App,
         analysis: &Analysis,
     ) -> syn::Result<()>;

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["multibin_cfg_core","multibin_cfg_not_core","multibin_shared"]};

@@ -30,6 +30,10 @@ impl RticPass for SoftwarePass {
         let code = CodeGen::new(parsed, analysis, self.implementation.as_ref()).run();
         Ok((args, code))
     }
+    
+    fn pass_name(&self) -> &str {
+        "SoftwareTasks"
+    }
 }
 
 /// Interface for providing the hardware specific details (i.e backend) needed by the software pass
