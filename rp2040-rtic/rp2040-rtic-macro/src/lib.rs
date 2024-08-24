@@ -1,6 +1,7 @@
 use proc_macro::TokenStream;
 use proc_macro2::{Ident, TokenStream as TokenStream2};
 use quote::{format_ident, quote};
+#[cfg(feature = "autoassign")]
 use rtic_auto_assign::AutoAssignPass;
 use rtic_core::{AppArgs, CorePassBackend, RticMacroBuilder, SubAnalysis, SubApp};
 use syn::{parse_quote, ItemFn};
@@ -9,6 +10,7 @@ extern crate proc_macro;
 
 struct Rp2040Rtic;
 
+#[cfg(feature = "swtasks")]
 use rtic_sw_pass::{SoftwarePass, SwPassBackend};
 
 const MIN_TASK_PRIORITY: u16 = 3;
@@ -17,10 +19,14 @@ const MAX_TASK_PRIORITY: u16 = 0;
 #[proc_macro_attribute]
 pub fn app(args: TokenStream, input: TokenStream) -> TokenStream {
     // use the standard software pass provided by rtic-sw-pass crate
+    #[cfg(feature = "swtasks")]
     let sw_pass = SoftwarePass::new(SwPassBackendImpl);
 
+    #[allow(unused_mut)]
     let mut builder = RticMacroBuilder::new(Rp2040Rtic);
+    #[cfg(feature = "autoassign")]
     builder.bind_pre_core_pass(AutoAssignPass); // run auto-assign pass first
+    #[cfg(feature = "swtasks")]
     builder.bind_pre_core_pass(sw_pass); // run software-pass second
     builder.build_rtic_macro(args, input)
 }
@@ -192,7 +198,9 @@ impl CorePassBackend for Rp2040Rtic {
     }
 }
 
+#[cfg(feature = "swtasks")]
 struct SwPassBackendImpl;
+#[cfg(feature = "swtasks")]
 impl SwPassBackend for SwPassBackendImpl {
     /// Provide the implementation/body of the core local interrupt pending function.
     fn generate_local_pend_fn(&self, mut empty_body_fn: ItemFn) -> ItemFn {

@@ -13,7 +13,6 @@ pub mod ast;
 pub struct App {
     pub mod_visibility: Visibility,
     pub mod_ident: Ident,
-    pub cores: u32,
     pub shared_resources: Vec<SharedResources>,
     pub tasks: Vec<RticTask>,
     pub rest_of_code: Vec<Item>,
@@ -63,7 +62,6 @@ impl App {
         Ok(Self {
             mod_ident: app_mod.ident,
             mod_visibility: app_mod.vis,
-            cores,
             tasks,
             shared_resources,
             rest_of_code,

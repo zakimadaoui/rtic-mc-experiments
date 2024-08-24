@@ -27,7 +27,7 @@ pub mod my_app {
     #[init(core = 0)]
     fn init_core0() {
         assert_eq!(get_core_id(), 0);
-        info!("staring core 0 ...");
+        println!("staring RP2040 core 0 ...");
 
         let mut device = pac::Peripherals::take().unwrap();
 
@@ -65,7 +65,7 @@ pub mod my_app {
         fn exec(&mut self) -> ! {
             loop {
                 self.count += 1;
-                // info!("looping in idle... {}", self.count);
+                // println!("looping in idle... {}", self.count);
                 asm::delay(120000000);
             }
         }
@@ -83,7 +83,7 @@ pub mod my_app {
             assert_eq!(get_core_id(), 0); // assert that this is executing on core 0
             asm::delay(PING_PONG_DELAY); // add some delay for visualization
             let pong = ping + 1;
-            info!("CORE0: Got ping {}, sending pong {}", ping, pong);
+            println!("CORE0: Got ping {}, sending pong {}", ping, pong);
             if let Err(_e) = Core1Task::spawn_from(Self::current_core(), pong) {
                 error!("couldn't spawn task on core 1 from core 0")
             }
@@ -99,7 +99,7 @@ pub mod my_app {
     #[init(core = 1)]
     fn init_core1() {
         assert_eq!(get_core_id(), 1);
-        info!("staring core 1 ...");
+        println!("staring RP2040 core 1 ...");
     }
 
     /// a Core1 task to be spawned by a task on Core0
@@ -118,7 +118,7 @@ pub mod my_app {
             assert_eq!(get_core_id(), 1); // assert that this is executing on core 0
             asm::delay(PING_PONG_DELAY); // add some delay for visualization
             let ping = pong + 1;
-            info!("CORE1: Got pong {}, sending ping {}", pong, ping);
+            println!("CORE1: Got pong {}, sending ping {}", pong, ping);
             if let Err(_e) = Core0Task::spawn_from(Self::current_core(), ping) {
                 error!("couldn't spawn task on core 0 from core 1")
             }

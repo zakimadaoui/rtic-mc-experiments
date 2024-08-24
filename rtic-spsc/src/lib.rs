@@ -2,17 +2,18 @@
 
 use core::mem::MaybeUninit;
 
-pub struct Queue<T: Copy, const DEPTH: usize> {
+pub struct Queue<T: Clone, const DEPTH: usize> {
     buffer: [MaybeUninit<T>; DEPTH],
     read_idx: usize,
     write_idx: usize,
 }
 
-impl<T: Copy, const DEPTH: usize> Queue<T, DEPTH> {
+impl<T: Clone, const DEPTH: usize> Queue<T, DEPTH> {
     #[inline(always)]
     pub const fn new() -> Self {
+        let buffer = unsafe { MaybeUninit::zeroed().assume_init() };
         Queue {
-            buffer: [MaybeUninit::zeroed(); DEPTH],
+            buffer,
             read_idx: 0,
             write_idx: 0,
         }
@@ -77,11 +78,11 @@ impl<T: Copy, const DEPTH: usize> Queue<T, DEPTH> {
     }
 }
 
-pub struct Producer<'a, T: Copy, const DEPTH: usize> {
+pub struct Producer<'a, T: Clone, const DEPTH: usize> {
     q: &'a mut Queue<T, DEPTH>,
 }
 
-impl<'a, T: Copy, const DEPTH: usize> Producer<'a, T, DEPTH> {
+impl<'a, T: Clone, const DEPTH: usize> Producer<'a, T, DEPTH> {
     pub fn enqueue(&mut self, data: T) -> Result<(), T> {
         self.q.enqueue(data)
     }
@@ -99,11 +100,11 @@ impl<'a, T: Copy, const DEPTH: usize> Producer<'a, T, DEPTH> {
     }
 }
 
-pub struct Consumer<'a, T: Copy, const DEPTH: usize> {
+pub struct Consumer<'a, T: Clone, const DEPTH: usize> {
     q: &'a mut Queue<T, DEPTH>,
 }
 
-impl<'a, T: Copy, const DEPTH: usize> Consumer<'a, T, DEPTH> {
+impl<'a, T: Clone, const DEPTH: usize> Consumer<'a, T, DEPTH> {
     pub fn dequeue(&mut self) -> Option<T> {
         self.q.dequeue()
     }
@@ -119,7 +120,7 @@ impl<'a, T: Copy, const DEPTH: usize> Consumer<'a, T, DEPTH> {
     }
 }
 
-// unsafe impl<T: Copy, const DEPTH: usize> Sync for Queue<T, DEPTH> {}
+// unsafe impl<T: Clone, const DEPTH: usize> Sync for Queue<T, DEPTH> {}
 
 // tests
 

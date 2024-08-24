@@ -210,16 +210,21 @@ pub const fn compute_mask_chunks<const L: usize>(ids: [u32; L]) -> usize {
 pub mod cross_core {
 
     #[inline]
-    pub fn pend_irq(irq: u16) {
-        cortex_m::interrupt::free(|_| unsafe {
-            let sio = &(*rp2040_hal::pac::SIO::PTR);
-            sio.fifo_wr.write(|wr| wr.bits(irq as u32));
-        });
+    pub fn pend_irq(irq: u16) -> Result<(), ()> {
+        let sio = unsafe { &(*rp2040_hal::pac::SIO::PTR) };
+        cortex_m::interrupt::free(|_| {
+            if sio.fifo_st.read().rdy().bit() { // TX fifo is not full
+                sio.fifo_wr.write(|wr| unsafe { wr.bits(irq as u32) });
+                Ok(())
+            } else {
+                Err(())
+            }
+        })
     }
 
     pub fn get_pended_irq() -> Option<rp2040_hal::pac::Interrupt> {
         let sio = unsafe { &(*rp2040_hal::pac::SIO::PTR) };
-        if sio.fifo_st.read().vld().bit() {
+        if sio.fifo_st.read().vld().bit() { // valid data on fifo
             let irq = sio.fifo_rd.read().bits() as u16;
             // implementation must guarantee that the only messages passed in the fifo are of pac::Interrupt type.
             let irq = unsafe { core::mem::transmute(irq) };
