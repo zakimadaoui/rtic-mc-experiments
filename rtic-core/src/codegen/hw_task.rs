@@ -1,5 +1,5 @@
 use proc_macro2::TokenStream as TokenStream2;
-use quote::{quote, ToTokens};
+use quote::quote;
 use syn::{parse_quote, ImplItem, ImplItemFn};
 
 use crate::{
@@ -137,15 +137,6 @@ impl HardwareTask {
     /// If the type InitArgs is implemented, generate a custom initialization function for the task
     pub fn adjust_task_impl_initialization(&mut self) -> syn::Result<()> {
         let task_impl = &mut self.struct_impl;
-        let target_task = &task_impl.self_ty;
-        let task_trait_path = if let Some((_, path, _)) = &task_impl.trait_ {
-            path
-        } else {
-            unreachable!(
-                "This ItemImpl must correspond to a task trait implementation for `{}` ",
-                task_impl.to_token_stream().to_string()
-            )
-        };
 
         let default_init_type_def: syn::ImplItemType = parse_quote!(
             type InitArgs = ();
@@ -153,7 +144,7 @@ impl HardwareTask {
         let init_args_type = task_impl.items.iter().find_map(|item| {
             let ImplItem::Type(t) = item else { return None };
             if t == &default_init_type_def {
-                return Some((t, true));
+                Some((t, true))
             } else if t.ident == "InitArgs" {
                 Some((t, false))
             } else {
@@ -169,7 +160,7 @@ impl HardwareTask {
                 return Ok(());
             }
             None => {
-                // user implicitly asks for implementing unit type from rtic
+                // user ask rtic to implicitly generate default implementation
                 task_impl.items.push(ImplItem::Type(default_init_type_def))
             }
             Some((_, true)) => { // user implements unit type
@@ -177,27 +168,17 @@ impl HardwareTask {
         }
 
         // find the init function and correct its signature
-        let init_fn = task_impl
-            .items
-            .iter_mut()
-            .find_map(|item| {
-                let ImplItem::Fn(f) = item else { return None };
+        task_impl.items.iter_mut().for_each(|item| {
+            if let ImplItem::Fn(f) = item {
                 if f.sig.ident == "init" {
-                    Some(f)
-                } else {
-                    None
+                    let default_init: ImplItemFn = parse_quote!(
+                        fn init(_: ()) -> Self {}
+                    );
+                    f.sig = default_init.sig; // correct the signature
                 }
-            })
-            .expect(&format!(
-                "The {} trait implementation of {} must include an init() method",
-                task_trait_path.to_token_stream().to_string(),
-                target_task.to_token_stream().to_string()
-            ));
+            }
+        });
 
-        let default_init: ImplItemFn = parse_quote!(
-            fn init(_: ()) -> Self {}
-        );
-        init_fn.sig = default_init.sig; // correct the signature
         Ok(())
     }
 }

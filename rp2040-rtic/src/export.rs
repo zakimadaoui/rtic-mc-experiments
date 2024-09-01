@@ -96,7 +96,7 @@ pub const fn have_basepri() -> bool {
 ///     - we execute the closure in a global critical section (interrupt free)
 ///     - CS entry cost, single write to core register
 ///     - CS exit cost, single write to core register
-///   else
+///   - else
 ///     - The `mask` value is folded to a constant at compile time
 ///     - CS entry, single write of the 32 bit `mask` to the `icer` register
 ///     - CS exit, single write of the 32 bit `mask` to the `iser` register
@@ -209,25 +209,29 @@ pub const fn compute_mask_chunks<const L: usize>(ids: [u32; L]) -> usize {
 /// Cross pending interrupts
 pub mod cross_core {
 
+    pub struct FullFifoErr;
+
     #[inline]
-    pub fn pend_irq(irq: u16) -> Result<(), ()> {
+    pub fn pend_irq(irq: u16) -> Result<(), FullFifoErr> {
         let sio = unsafe { &(*rp2040_hal::pac::SIO::PTR) };
         cortex_m::interrupt::free(|_| {
-            if sio.fifo_st.read().rdy().bit() { // TX fifo is not full
+            if sio.fifo_st.read().rdy().bit() {
+                // TX fifo is not full
                 sio.fifo_wr.write(|wr| unsafe { wr.bits(irq as u32) });
                 Ok(())
             } else {
-                Err(())
+                Err(FullFifoErr)
             }
         })
     }
 
     pub fn get_pended_irq() -> Option<rp2040_hal::pac::Interrupt> {
         let sio = unsafe { &(*rp2040_hal::pac::SIO::PTR) };
-        if sio.fifo_st.read().vld().bit() { // valid data on fifo
+        if sio.fifo_st.read().vld().bit() {
+            // valid data on fifo
             let irq = sio.fifo_rd.read().bits() as u16;
             // implementation must guarantee that the only messages passed in the fifo are of pac::Interrupt type.
-            let irq = unsafe { core::mem::transmute(irq) };
+            let irq = unsafe { core::mem::transmute::<u16, rp2040_hal::pac::Interrupt>(irq) };
             Some(irq)
         } else {
             None

@@ -5,7 +5,7 @@
 #![no_std]
 #![no_main]
 
-#[rtic::app(device=stm32f1xx_hal::pac, peripherals=false, dispatchers = [[TIM3],[TIM4]], cores=2)]
+#[rtic::app(device= [stm32f1xx_hal::pac, stm32f1xx_hal::pac], peripherals=false, dispatchers = [[TIM3],[TIM4]], cores=2)]
 pub mod my_app {
 
     use cortex_m::asm;

@@ -42,7 +42,7 @@ impl CorePassBackend for Rp2040Rtic {
         sub_app: &SubApp,
         app_analysis: &SubAnalysis,
     ) -> Option<TokenStream2> {
-        let peripheral_crate = &app_args.device;
+        let peripheral_crate = &app_args.pacs[sub_app.core as usize];
         let initialize_dispatcher_interrupts =
             app_analysis.used_irqs.iter().map(|(irq_name, priority)| {
                 let priority = priority.min(&MIN_TASK_PRIORITY); // limit piority to minmum
@@ -58,13 +58,13 @@ impl CorePassBackend for Rp2040Rtic {
 
         // initialize core 1 from core 0 if the application is for multicore (cores > 1)
         let init_and_spawn_core1 = if sub_app.core == 0 && app_args.cores > 1 {
-            Some(init_core1(app_args))
+            Some(init_core1(peripheral_crate))
         } else {
             None
         };
 
         let configure_fifo = if app_args.cores > 1 {
-            Some(configure_fifo(app_args, sub_app.core))
+            Some(configure_fifo(peripheral_crate, sub_app.core))
         } else {
             None
         };
@@ -107,7 +107,7 @@ impl CorePassBackend for Rp2040Rtic {
         app_info: &SubApp,
         _app_analysis: &SubAnalysis,
     ) -> Option<TokenStream2> {
-        let peripheral_crate = &app_args.device;
+        let peripheral_crate = &app_args.pacs[app_info.core as usize];
 
         // irq names from hadware tasks
         let irq_list_as_u32 = app_info.tasks.iter().filter_map(|t| {
@@ -225,8 +225,7 @@ impl SwPassBackend for SwPassBackendImpl {
     }
 }
 
-fn init_core1(app_info: &AppArgs) -> TokenStream2 {
-    let pac = &app_info.device;
+fn init_core1(pac: &syn::Path) -> TokenStream2 {
     quote! {
         /// Stack for core 1
         ///
@@ -251,8 +250,7 @@ fn init_core1(app_info: &AppArgs) -> TokenStream2 {
     }
 }
 
-fn configure_fifo(app_info: &AppArgs, core: u32) -> TokenStream2 {
-    let peripheral_crate = &app_info.device;
+fn configure_fifo(peripheral_crate: &syn::Path, core: u32) -> TokenStream2 {
     #[allow(non_snake_case)]
     let SIO_IRQ_PROC = format_ident!("SIO_IRQ_PROC{core}");
     quote! {

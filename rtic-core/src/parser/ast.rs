@@ -4,11 +4,11 @@ use heck::ToSnakeCase;
 use proc_macro2::Span;
 use quote::ToTokens;
 use syn::{
-    parse::Parser, spanned::Spanned, Expr, ExprArray, Ident, ItemFn, ItemImpl, ItemStruct, LitInt,
-    Meta,
+    parse::Parser, spanned::Spanned, Expr, ExprArray, ExprLit, Ident, ItemFn, ItemImpl, ItemStruct,
+    Lit, LitInt, Meta,
 };
 
-use crate::DEFAULT_TASK_PRIORITY;
+use crate::{errors::ParseError, parse_utils::RticAttr, DEFAULT_TASK_PRIORITY};
 
 #[derive(Debug)]
 pub struct InitTask {
@@ -224,7 +224,7 @@ impl SharedResources {
 #[derive(Debug)]
 pub struct AppArgs {
     // path to peripheral crate
-    pub device: syn::Path,
+    pub pacs: Vec<syn::Path>,
     pub peripherals: bool,
     pub cores: u32,
     // TODO: add other args as a map of string, expression pairs
@@ -233,38 +233,54 @@ pub struct AppArgs {
 impl AppArgs {
     pub fn parse(args: proc_macro2::TokenStream) -> syn::Result<Self> {
         let args_span = args.span();
-        let mut device: Option<syn::Path> = None;
-        let mut peripherals: Option<syn::LitBool> = None;
-        let mut cores: Option<syn::LitInt> = None;
-        syn::meta::parser(|meta| {
-            if meta.path.is_ident("device") {
-                device = Some(meta.value()?.parse()?);
-            } else if meta.path.is_ident("peripherals") {
-                peripherals = Some(meta.value()?.parse()?);
-            } else if meta.path.is_ident("cores") {
-                cores = Some(meta.value()?.parse()?)
-            } else {
-                // this is needed to advance the values iterator
-                let _: syn::Result<syn::Expr> = meta.value()?.parse();
-            }
-            Ok(())
-        })
-        .parse2(args)?;
 
-        let Some(device) = device else {
-            return Err(syn::Error::new(
-                args_span,
-                "device = path::to:pac must be provided.",
-            ));
+        let mut args = RticAttr::parse_from_tokens(&args)?;
+
+        // parse the number of cores
+        let cores = args.elements.remove("cores");
+        let cores = match cores {
+            Some(Expr::Lit(ExprLit {
+                lit: Lit::Int(lit_int),
+                ..
+            })) => lit_int.base10_parse()?,
+            _ => 1_u32,
         };
 
-        let cores = cores
-            .and_then(|cores| cores.base10_parse().ok())
-            .unwrap_or(1_u32);
+        // parse the path(s) to PAC(s)
+        let device = args
+            .elements
+            .remove("device")
+            .ok_or(ParseError::DeviceArg.to_syn(args_span))?;
+
+        let pacs = match device {
+            Expr::Array(array_exp) => {
+                if array_exp.elems.len() != cores as usize {
+                    return Err(ParseError::DevicesCoresMismatch.to_syn(args_span));
+                }
+
+                let mut devices = Vec::with_capacity(cores as usize);
+                for exp in array_exp.elems {
+                    if let Expr::Path(p) = exp {
+                        devices.push(p.path)
+                    } else {
+                        return Err(ParseError::DeviceNotPath.to_syn(args_span));
+                    }
+                }
+                devices
+            }
+            Expr::Path(path_to_pac) => {
+                let mut devices = Vec::with_capacity(cores as usize);
+                for _ in 0..cores {
+                    devices.push(path_to_pac.path.clone())
+                }
+                devices
+            }
+            _ => return Err(ParseError::DeviceNotPath.to_syn(args_span)),
+        };
 
         Ok(Self {
-            device,
-            peripherals: peripherals.map_or(false, |f| f.value),
+            pacs,
+            peripherals: false, // TODO: not supported yet
             cores,
         })
     }

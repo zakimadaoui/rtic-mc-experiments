@@ -62,7 +62,7 @@ impl RticAttr {
 }
 
 impl ToTokens for RticAttr {
-    /// Reconstruct the tokenstream representation of #[app(arg1="val1", ...)] macro attribute from the internal state of [Self] 
+    /// Reconstruct the tokenstream representation of #[app(arg1="val1", ...)] macro attribute from the internal state of [Self]
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         let args = self.elements.iter().map(|(name, value)| {
             let name = format_ident!("{name}");

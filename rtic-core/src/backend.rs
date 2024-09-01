@@ -21,10 +21,8 @@ pub trait CorePassBackend {
     /// This function will be called several times in case of a multicore system, each time with different `app_info` and `app_analysis`.
     /// ## Arguments
     /// - `app_args`: arguments provided to the #[app(...)] macro attribute, this includes paths to PACs, number of cores...
-    /// - `app_info`: Contains the parsed user application. For single core this will be the full application.
-    /// For multicore, this represents only a sub-application corresponding to a specific core.
-    /// - `app_analysis`: Information about the analyzed application. For single core this will be the analysis of the full application.
-    /// For multicore, this represents the analysis of a sub-application corresponding to a specific core.
+    /// - `app_info`: Contains the parsed user application. For single core this will be the full application. For multicore, this represents only a sub-application corresponding to a specific core.
+    /// - `app_analysis`: Information about the analyzed application. For single core this will be the analysis of the full application. For multicore, this represents the analysis of a sub-application corresponding to a specific core.
     fn post_init(
         &self,
         app_args: &AppArgs,
@@ -102,10 +100,8 @@ pub trait CorePassBackend {
     ///
     /// ## Arguments
     /// - `app_args`: arguments provided to the #[app(...)] macro attribute, this includes paths to PACs, number of cores...
-    /// - `app_info`: Contains the parsed user application. For single core this will be the full application.
-    /// For multicore, this represents only a sub-application corresponding to a specific core.
-    /// - `app_analysis`: Information about the analyzed application. For single core this will be the analysis of the full application.
-    /// For multicore, this represents the analysis of a sub-application corresponding to a specific core.
+    /// - `app_info`: Contains the parsed user application. For single core this will be the full application. For multicore, this represents only a sub-application corresponding to a specific core.
+    /// - `app_analysis`: Information about the analyzed application. For single core this will be the analysis of the full application. For multicore, this represents the analysis of a sub-application corresponding to a specific core.
     fn generate_global_definitions(
         &self,
         app_args: &AppArgs,

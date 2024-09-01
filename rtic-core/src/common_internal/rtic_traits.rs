@@ -27,7 +27,7 @@ fn hw_task_trait() -> TokenStream2 {
         /// Trait for a hardware task
         pub trait #hw_task {
             /// Associated type that can be used to make [Self::init] take arguments
-            type InitArgs;
+            type InitArgs: Sized;
             /// Task local variables initialization routine
             fn init(args: Self::InitArgs) -> Self;
             /// Function to be bound to a HW Interrupt
@@ -42,7 +42,7 @@ fn idle_task_trait() -> TokenStream2 {
         /// Trait for an idle task
         pub trait #idle_task {
             /// Associated type that can be used to make [Self::init] take arguments
-            type InitArgs;
+            type InitArgs: Sized;
             /// Task local variables initialization routine
             fn init(args: Self::InitArgs) -> Self;
             /// Function to be executing when no other task is running

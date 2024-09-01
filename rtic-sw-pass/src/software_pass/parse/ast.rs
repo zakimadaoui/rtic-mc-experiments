@@ -1,33 +1,59 @@
-use proc_macro2::Span;
-use rtic_core::parse_utils::RticAttr;
+use proc_macro2::{Span, TokenStream};
+use rtic_core::{errors::ParseError, parse_utils::RticAttr};
 use std::collections::HashMap;
-use syn::{Expr, Ident, ItemImpl, ItemStruct, Lit, Path};
+use syn::{spanned::Spanned, Expr, Ident, ItemImpl, ItemStruct, Lit, Path};
 
 pub struct AppParameters {
     pub dispatchers: HashMap<u32, Vec<Path>>,
-    pub device: Path,
+    pub pacs: Vec<Path>,
     pub cores: u32,
 }
 
 impl AppParameters {
-    pub fn from_attr(args: &RticAttr) -> syn::Result<Self> {
-        // parse cores arg
-        let cores = if let Some(Expr::Lit(syn::ExprLit {
-            lit: Lit::Int(ref cores),
-            ..
-        })) = args.elements.get("cores")
-        {
-            cores.base10_parse()?
-        } else {
-            1_u32
+    pub fn parse(args: &TokenStream) -> syn::Result<Self> {
+        let args_span = args.span();
+        let mut args = RticAttr::parse_from_tokens(args)?;
+
+        // parse the number of cores
+        let cores = args.elements.remove("cores");
+        let cores = match cores {
+            Some(Expr::Lit(syn::ExprLit {
+                lit: Lit::Int(lit_int),
+                ..
+            })) => lit_int.base10_parse()?,
+            _ => 1_u32,
         };
 
-        // parse peripheral crate name
-        let Some(Expr::Path(p)) = args.elements.get("device") else {
-            return Err(syn::Error::new(
-                Span::call_site(),
-                "`device` option must be provided",
-            ));
+        // parse the path(s) to PAC(s)
+        let device = args
+            .elements
+            .remove("device")
+            .ok_or(ParseError::DeviceArg.to_syn(args_span))?;
+
+        let pacs = match device {
+            Expr::Array(array_exp) => {
+                if array_exp.elems.len() != cores as usize {
+                    return Err(ParseError::DevicesCoresMismatch.to_syn(args_span));
+                }
+
+                let mut devices = Vec::with_capacity(cores as usize);
+                for exp in array_exp.elems {
+                    if let Expr::Path(p) = exp {
+                        devices.push(p.path)
+                    } else {
+                        return Err(ParseError::DeviceNotPath.to_syn(args_span));
+                    }
+                }
+                devices
+            }
+            Expr::Path(path_to_pac) => {
+                let mut devices = Vec::with_capacity(cores as usize);
+                for _ in 0..cores {
+                    devices.push(path_to_pac.path.clone())
+                }
+                devices
+            }
+            _ => return Err(ParseError::DeviceNotPath.to_syn(args_span)),
         };
 
         // dispatchers
@@ -69,7 +95,7 @@ impl AppParameters {
 
         Ok(Self {
             dispatchers,
-            device: p.path.clone(),
+            pacs,
             cores,
         })
     }

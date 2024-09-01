@@ -27,6 +27,7 @@ pub use parser::{App, SubApp};
 mod analysis;
 mod backend;
 mod codegen;
+pub mod errors;
 mod common_internal;
 pub mod parse_utils;
 

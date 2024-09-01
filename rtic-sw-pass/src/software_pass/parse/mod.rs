@@ -1,5 +1,5 @@
 use crate::parse::ast::{AppParameters, SoftwareTask, TaskParams};
-use proc_macro2::Ident;
+use proc_macro2::{Ident, TokenStream};
 use rtic_core::parse_utils::RticAttr;
 use std::collections::HashMap;
 use syn::spanned::Spanned;
@@ -31,8 +31,8 @@ pub struct App {
 }
 
 impl App {
-    pub fn parse(params: &RticAttr, mut app_mod: ItemMod) -> syn::Result<Self> {
-        let app_params = AppParameters::from_attr(params)?;
+    pub fn parse(args: &TokenStream, mut app_mod: ItemMod) -> syn::Result<Self> {
+        let app_params = AppParameters::parse(args)?;
         let app_mod_items = app_mod.content.take().unwrap_or_default().1;
         let mut sw_task_structs = Vec::new();
         let mut sw_task_impls = HashMap::new();

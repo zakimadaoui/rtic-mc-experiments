@@ -3,6 +3,7 @@ use quote::{format_ident, quote, ToTokens};
 use task_init::{generate_late_init_tasks_struct, generate_late_tasks_init_calls};
 
 use crate::analysis::Analysis;
+use crate::multibin::multibin_cfg_core;
 use crate::parser::ast::{RticTask, SharedResources};
 use crate::parser::{ast::IdleTask, App};
 use crate::rtic_functions::{get_interrupt_free_fn, INTERRUPT_FREE_FN};
@@ -47,7 +48,7 @@ impl<'a> CodeGen<'a> {
         let use_multibin_shared: Option<TokenStream2> = None;
 
         let app_mod = &app.app_name;
-        let peripheral_crate = &app.args.device;
+        let peripheral_crate = generate_use_pac_statement(app);
         let user_includes = &app.user_includes;
         let user_code = &app.other_code;
         let interrupt_free_fn = get_interrupt_free_fn(implementation);
@@ -60,8 +61,9 @@ impl<'a> CodeGen<'a> {
 
         quote! {
             pub mod #app_mod {
-                /// Include peripheral crate that defines the vector table
-                use #peripheral_crate as _;
+                /// Include peripheral crate(s) that defines the vector table
+                #peripheral_crate
+
                 // if multibin feature is enabled, add the this use statement
                 #use_multibin_shared
 
@@ -262,6 +264,54 @@ fn generate_core_type(core: u32) -> TokenStream2 {
                     #core_ty(#innter_core_ty)
                 }
             }
+        }
+    }
+}
+
+/// This will generate the `user path::to::pac` statement. The output varies based on what features the distribution enables:
+///
+/// 1) If both `multipac` and `multibin` features are enabled, and the user provides a list of paths to PACs (i.e #app(device = [ path1, path2, ..])) the following will be generated
+/// ```
+/// #[cfg(core = '0')]
+/// use path1 as _;
+///
+/// #[cfg(core = '1')]
+/// use path2 as _;
+/// ```
+///
+/// 2) If only `multipac` feature is enabled, and the user provides a list of paths to PACs (i.e #app(device = [ path1, path2, ..])) the following will be generated
+/// ```
+/// use path1 as _;
+/// use path2 as _;
+/// ```
+///
+/// 3) If neither `multipac`, nor `multibin` features are enabled, or if the user provides a single path to PACs (i.e #app(device = path::to::pac ) the following will be generated
+/// ```
+/// use  path::to::pac as _;
+/// ```
+fn generate_use_pac_statement(app: &App) -> TokenStream2 {
+    if cfg!(feature = "multipac") && app.args.pacs.len() != 1 {
+        if cfg!(feature = "multibin") {
+            let iter = app.args.pacs.iter().enumerate().map(|(core, pac)| {
+                let cfg_core = multibin_cfg_core(core as u32);
+                quote! {
+                 #cfg_core
+                 use #pac as _;
+                }
+            });
+            quote! {
+                #(#iter)*
+            }
+        } else {
+            let pacs = &app.args.pacs;
+            quote! {
+                use #(#pacs)* as _;
+            }
+        }
+    } else {
+        let path_to_pac = &app.args.pacs[0];
+        quote! {
+            use #path_to_pac as _;
         }
     }
 }

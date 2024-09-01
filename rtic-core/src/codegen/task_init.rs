@@ -4,7 +4,7 @@ use syn::{parse_quote, ItemStruct};
 
 use crate::analysis::LateResourceTask;
 
-pub fn generate_late_init_tasks_struct(tasks: &Vec<LateResourceTask>) -> Option<ItemStruct> {
+pub fn generate_late_init_tasks_struct(tasks: &[LateResourceTask]) -> Option<ItemStruct> {
     if tasks.is_empty() {
         return None;
     }
@@ -21,7 +21,7 @@ pub fn generate_late_init_tasks_struct(tasks: &Vec<LateResourceTask>) -> Option<
 }
 
 pub fn generate_late_tasks_init_calls(
-    tasks: &Vec<LateResourceTask>,
+    tasks: &[LateResourceTask],
     initializer_instance: &syn::Ident,
 ) -> TokenStream {
     let init_calls = tasks.iter().map(|t| {

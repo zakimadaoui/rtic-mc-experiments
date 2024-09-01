@@ -35,7 +35,7 @@ impl CorePassBackend for RenodeRtic {
         sub_app: &SubApp,
         app_analysis: &SubAnalysis,
     ) -> Option<TokenStream2> {
-        let peripheral_crate = &app_args.device;
+        let peripheral_crate = &app_args.pacs[sub_app.core as usize];
         let initialize_dispatcher_interrupts =
             app_analysis.used_irqs.iter().map(|(irq_name, priority)| {
                 let priority = priority.min(&MIN_TASK_PRIORITY); // limit piority to minmum
@@ -50,7 +50,7 @@ impl CorePassBackend for RenodeRtic {
             });
 
         let configure_fifo = if app_args.cores > 1 {
-            Some(configure_fifo(app_args, sub_app.core))
+            Some(configure_fifo(peripheral_crate, sub_app.core))
         } else {
             None
         };
@@ -89,7 +89,7 @@ impl CorePassBackend for RenodeRtic {
         app_info: &SubApp,
         _app_analysis: &SubAnalysis,
     ) -> Option<TokenStream2> {
-        let peripheral_crate = &app_args.device;
+        let peripheral_crate = &app_args.pacs[app_info.core as usize];
 
         // define only once
         if app_info.core == 0 {
@@ -174,8 +174,7 @@ impl SwPassBackend for SwPassBackendImpl {
     }
 }
 
-fn configure_fifo(app_info: &AppArgs, _core: u32) -> TokenStream2 {
-    let peripheral_crate = &app_info.device;
+fn configure_fifo(peripheral_crate: &syn::Path, _core: u32) -> TokenStream2 {
     quote! {
         unsafe {
             let fifo = &mut rtic::mailbox::Mailbox;

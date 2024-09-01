@@ -34,7 +34,7 @@ impl<'a> CodeGen<'a> {
         let sw_task_trait_def = quote! {
             /// Trait for a software task
             pub trait #software_task_trait {
-                type InitArgs;
+                type InitArgs: Sized;
                 type SpawnInput;
                 /// Task local variables initialization routine
                 fn init(args: Self::InitArgs) -> Self;
@@ -90,9 +90,9 @@ impl<'a> CodeGen<'a> {
     fn generate_subapps(&mut self) -> TokenStream {
         let apps = self.app.sub_apps.iter_mut();
         let analysis = self.analysis.sub_analysis.iter();
-        let pac = &self.app.app_params.device;
 
         let sub_apps = apps.zip(analysis).map(|(sub_app, sub_analysis)| {
+            let pac = &self.app.app_params.pacs[sub_app.core as usize];
             // first merge the multi-core and core local tasks as the same code will be generated for both
             let tasks_iter = sub_app
                 .sw_tasks
