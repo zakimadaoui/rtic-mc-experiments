@@ -4,6 +4,7 @@
 /// Distribution crate must re-export the `export` module from all the used compilation passes
 pub use rtic_sw_pass::export::*;
 
+use crate::mailbox;
 use cortex_m::register::{basepri, basepri_max};
 pub use cortex_m::{
     asm::nop,
@@ -12,11 +13,9 @@ pub use cortex_m::{
     peripheral::{scb::SystemHandler, DWT, NVIC, SCB, SYST},
     Peripherals,
 };
-use crate::mailbox;
 
-pub use microamp;
 pub use mailbox::cross_core;
-
+pub use microamp;
 
 #[inline]
 #[must_use]
@@ -75,7 +74,7 @@ where
 /// Total OH of per task is max 2 clock cycles, negligible in practice
 /// but can in theory be fixed.
 ///
-/// 
+///
 #[inline(always)]
 pub unsafe fn lock<T, R>(
     ptr: *mut T,

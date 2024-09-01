@@ -1,9 +1,9 @@
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 
-use crate::rtic_traits::MUTEX_TY;
 use crate::parser::ast::{RticTask, SharedResources};
 use crate::rtic_functions::get_resource_proxy_lock_fn;
+use crate::rtic_traits::MUTEX_TY;
 use crate::{multibin, AppArgs, CorePassBackend, SubApp};
 
 impl SharedResources {
@@ -92,6 +92,7 @@ impl SharedResources {
         let field_and_proxytype2 = field_and_proxytype.clone();
 
         // TODO: replace `shared(&self)` with individual `shared_resource_name(&self) -> proxy_type`
+        // to avoid constructing the whole shared structure only for one resource access.
 
         let task_ty = task.name();
         let task_prio = task.args.priority;

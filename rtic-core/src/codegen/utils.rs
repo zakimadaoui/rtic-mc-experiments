@@ -15,6 +15,7 @@ pub fn core_type_mod(core: u32) -> Ident {
 
 #[allow(unused)]
 pub mod multibin {
+    use proc_macro2::TokenStream;
     use syn::{parse_quote, Attribute};
 
     /// If `multibin` feature is enabled, this returns a tokenstream for the attribute `#[cfg(core = "x")]` to partition an application
@@ -39,6 +40,20 @@ pub mod multibin {
             let val = core.to_string();
             Some(parse_quote! {
                 #[cfg(not(core = #val))]
+            })
+        }
+        #[cfg(not(feature = "multibin"))]
+        None
+    }
+
+    /// If `multibin` feature is enabled, this returns a tokenstream for the attribute `#[cfg_attr(not(core = "x"), your_attr)]`
+    /// Otherwise `None` is returned
+    pub fn multibin_cfg_attr_not_core(core: u32, attr: TokenStream) -> Option<Attribute> {
+        #[cfg(feature = "multibin")]
+        {
+            let val = core.to_string();
+            Some(parse_quote! {
+                #[cfg_attr(not(core = #val), #attr)]
             })
         }
         #[cfg(not(feature = "multibin"))]

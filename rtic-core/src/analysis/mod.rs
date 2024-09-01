@@ -12,14 +12,14 @@ pub struct Analysis {
 
 impl Analysis {
     /// - updates resource ceilings
-    /// - collects and structure key information about the user application to be used during code generation 
+    /// - collects and structure key information about the user application to be used during code generation
     pub fn run(parsed_app: &mut App) -> syn::Result<Self> {
         // update resource ceilings
         for app in parsed_app.sub_apps.iter_mut() {
             update_resource_priorities(app.shared.as_mut(), &app.tasks)?;
         }
 
-        // collect and structure key information about the user application to be used during code generation 
+        // collect and structure key information about the user application to be used during code generation
         let sub_analysis = parsed_app
             .sub_apps
             .iter()

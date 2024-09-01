@@ -2,6 +2,12 @@
 //! Core 0 task dispatched by DMA_IRQ_0 -> pings -> Core 1 task dispatched by DMA_IRQ_1
 //! and vice-versa !
 
+//! When developing on VS code, one should enable #![allow(unused)], then once code is complete, this can be disabled
+//! and one should rely on the output of the next two clippy commands instead of seeing vscode squiggles
+//! core0= `RUSTFLAGS='--cfg core="0"' cargo clippy --example ping_pong`
+//! core1= `RUSTFLAGS='--cfg core="1"' cargo clippy --example ping_pong`
+// #![allow(unused)]
+
 #![no_std]
 #![no_main]
 
@@ -11,8 +17,12 @@ pub mod my_app {
     use cortex_m::asm;
     use panic_halt as _;
 
+    #[cfg(core = "0")]
+    use stm32f1xx_hal::pac::{self, USART2};
+    #[cfg(core = "1")]
+    use stm32f1xx_hal::pac::{self, USART3};
+
     use stm32f1xx_hal::{
-        pac::{self, USART2, USART3},
         prelude::*,
         serial::{Config, Serial, Tx},
     };

@@ -1,14 +1,24 @@
 #![no_std]
 #![no_main]
 
+//! When developing on VS code, one should enable #![allow(unused)], then once code is complete, this can be disabled
+//! and one should rely on the output of the next two clippy commands instead of seeing vscode squiggles
+//! core0= `RUSTFLAGS='--cfg core="0"' cargo clippy --example hello_rtic_multi`
+//! core1= `RUSTFLAGS='--cfg core="1"' cargo clippy --example hello_rtic_multi`
+// #![allow(unused)]
+
 #[rtic::app(device=stm32f1xx_hal::pac, peripherals=false, cores=2)]
 pub mod my_app {
 
     use cortex_m::asm;
     use panic_halt as _;
 
+    #[cfg(core = "0")]
+    use stm32f1xx_hal::pac::{self, USART2};
+    #[cfg(core = "1")]
+    use stm32f1xx_hal::pac::{self, USART3};
+
     use stm32f1xx_hal::{
-        pac::{self, Interrupt, USART2, USART3},
         prelude::*,
         serial::{Config, Serial, Tx},
     };

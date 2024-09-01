@@ -6,7 +6,7 @@
 #[repr(u16)]
 pub enum InterruptExt {
     #[doc = "59 - Mailbox data available interrupt"]
-    MAILBOX_INTERRUPT = 59, // We are stealing the interrupt line of `DMA2_CHANNEL4_5` and replacing that with mailbox interrupt 
+    MAILBOX_INTERRUPT = 59, // We are stealing the interrupt line of `DMA2_CHANNEL4_5` and replacing that with mailbox interrupt
 }
 
 unsafe impl cortex_m::interrupt::InterruptNumber for InterruptExt {
@@ -79,7 +79,6 @@ mod implementation {
     }
 }
 
-
 /// Cross pending interrupts
 pub mod cross_core {
     use super::Mailbox;
@@ -95,11 +94,11 @@ pub mod cross_core {
 
     pub fn get_pended_irq() -> Option<stm32f1xx_hal::pac::Interrupt> {
         // READ IRQ NBR FROM FIFO
-        let fifo = & Mailbox;
+        let fifo = &Mailbox;
         if fifo.status_ready() {
             let irq = fifo.rd.read() as u16;
             // implementation must guarantee that the only messages passed in the fifo are of pac::Interrupt type.
-            let irq = unsafe { core::mem::transmute(irq) };
+            let irq = unsafe { core::mem::transmute::<u16, stm32f1xx_hal::pac::Interrupt>(irq) };
             Some(irq)
         } else {
             None
@@ -109,10 +108,9 @@ pub mod cross_core {
 
 #[no_mangle]
 #[allow(non_snake_case)]
-#[export_name = "DMA2_CHANNEL4_5"] // DMA2 channel 4_5 interrupt is repurposed for mailbox usage 
+#[export_name = "DMA2_CHANNEL4_5"] // DMA2 channel 4_5 interrupt is repurposed for mailbox usage
 fn MAILBOX_INTERRUPT() {
     if let Some(signal) = cross_core::get_pended_irq() {
         NVIC::pend(signal);
     }
 }
-

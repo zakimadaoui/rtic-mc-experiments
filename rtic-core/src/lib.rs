@@ -1,8 +1,8 @@
 //! TODO: Crate level documentation needed to describe the following:
-//! - a distribution 
-//! - a compilation pass 
+//! - a distribution
+//! - a compilation pass
 //! - how compilation passes work
-//! - the built-in core compilation pass 
+//! - the built-in core compilation pass
 //! - guidelines for implementing new distributions, links, and link to template distribution
 
 extern crate proc_macro;
@@ -27,8 +27,8 @@ pub use parser::{App, SubApp};
 mod analysis;
 mod backend;
 mod codegen;
-pub mod errors;
 mod common_internal;
+pub mod errors;
 pub mod parse_utils;
 
 mod parser;
@@ -36,13 +36,13 @@ mod parser;
 static DEFAULT_TASK_PRIORITY: AtomicU16 = AtomicU16::new(0);
 
 /// A trait that allows defining a **Compilation Pass**.
-/// 
-/// A **Compilation Pass** can be thought of as a (partial) proc-macro that expands parts of the user RTIC application 
-/// once all the compilation passes provided using [RticMacroBuilder::bind_pre_core_pass] and 
-/// [RticMacroBuilder::bind_post_core_pass] are run. The resulting code should be comprised only of *init*, *idle* , 
+///
+/// A **Compilation Pass** can be thought of as a (partial) proc-macro that expands parts of the user RTIC application
+/// once all the compilation passes provided using [RticMacroBuilder::bind_pre_core_pass] and
+/// [RticMacroBuilder::bind_post_core_pass] are run. The resulting code should be comprised only of *init*, *idle* ,
 /// *shared resources* and *tasks* (that may be bound to interrupts) that share those resources. The **Core Pass**
 /// then will take over from there to generate all the necessary logic and expand the user application further to an
-/// application understandable by the Rust compiler. 
+/// application understandable by the Rust compiler.
 pub trait RticPass {
     /// Runs the (partial) proc-macro logic that allows extending the basic RTIC syntax
     fn run_pass(
@@ -51,13 +51,13 @@ pub trait RticPass {
         app_mod: ItemMod,
     ) -> syn::Result<(TokenStream2, ItemMod)>;
 
-    /// Returns a human readable name/alias used to identify the pass. This identifier will show np in errors for example 
+    /// Returns a human readable name/alias used to identify the pass. This identifier will show np in errors for example
     /// to help knowing exactly which compilation pass has failed in that case.
     fn pass_name(&self) -> &str;
 }
 
-/// This should be used to compose an **RTIC distribution**. In other words, it allows building the RTIC **app** macro 
-/// By providing the necessary low-level hardware bindings and binding additional **Compilation Passes** 
+/// This should be used to compose an **RTIC distribution**. In other words, it allows building the RTIC **app** macro
+/// By providing the necessary low-level hardware bindings and binding additional **Compilation Passes**
 /// in the case syntax extensions are desired.
 pub struct RticMacroBuilder {
     core: Box<dyn CorePassBackend>,
@@ -88,7 +88,7 @@ impl RticMacroBuilder {
 
     /// Once the **CorePass** low level hardware bindings are provided, and a selection of **Compilation Passes** are binded
     /// too, use this method to run the **app** proc macro logic.
-    /// 
+    ///
     /// Returns a TokenStream of the expanded user application.
     pub fn build_rtic_macro(self, args: TokenStream, input: TokenStream) -> TokenStream {
         // init statics
@@ -121,7 +121,7 @@ impl RticMacroBuilder {
                 return e.to_compile_error().into();
             }
         };
-        
+
         // update resource ceilings and gather more information about the application
         let analysis = match Analysis::run(&mut parsed_app) {
             Ok(a) => a,

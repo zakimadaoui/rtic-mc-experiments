@@ -227,7 +227,6 @@ pub struct AppArgs {
     pub pacs: Vec<syn::Path>,
     pub peripherals: bool,
     pub cores: u32,
-    // TODO: add other args as a map of string, expression pairs
 }
 
 impl AppArgs {

@@ -17,7 +17,7 @@ mod app {
     use core::sync::atomic::{AtomicU32, Ordering};
     use cortex_m::asm;
     use fugit::{MicrosDurationU32, RateExtU32};
-    use heapless::{String, Vec};
+    use heapless::String;
     use rp2040_hal::gpio::bank0::{Gpio0, Gpio1, Gpio25};
     use rp2040_hal::gpio::{FunctionSio, FunctionUart, Pin, PullDown, SioOutput};
     use rp2040_hal::timer::{Alarm, Alarm0};
@@ -152,6 +152,7 @@ mod app {
     enum Command {
         Blink,
         Encrypt,
+        Decrypt,
         Hash,
         Unknown,
     }
@@ -184,6 +185,7 @@ mod app {
                 let cmd = match b {
                     b'b' => Command::Blink,
                     b'e' => Command::Encrypt,
+                    b'd' => Command::Decrypt,
                     b'h' => Command::Hash,
                     _ => Command::Unknown,
                 };
@@ -218,6 +220,12 @@ mod app {
                             .uart_tx
                             .lock(|uart| uart.write_full_blocking(b"Starting encryptor ...\r\n"));
                         let _ = encryptor::spawn(cx.local.uart_state.data.clone());
+                    }
+                    Command::Decrypt => {
+                        cx.shared
+                            .uart_tx
+                            .lock(|uart| uart.write_full_blocking(b"Starting decryptor ...\r\n"));
+                        let _ = decryptor::spawn(cx.local.uart_state.data.clone());
                     }
                     Command::Hash => {
                         cx.shared
@@ -277,24 +285,20 @@ mod app {
         shared = [uart_tx],
     )]
     async fn encryptor(mut cx: encryptor::Context, mut data: String<30>) {
-        xor_cipher(&mut data);
+        xor_cipher(unsafe { data.as_bytes_mut() });
         cx.shared.uart_tx.lock(|uart| {
             uart.write_full_blocking(b"Encryption done: ");
-            let mut out = Vec::<u8, 41>::new(); // 40 bytes are needed to represent 30 raw bytes in base64 format
-            base64::engine::general_purpose::STANDARD
+            let mut out = [0; 100]; // 40 bytes are needed to represent 30 raw bytes in base64 format
+            let size = base64::engine::general_purpose::STANDARD
                 .encode_slice(data.as_bytes(), &mut out)
-                .unwrap_or_else(|_| {
-                    out.clear();
-                    let _ = out.extend_from_slice(b"error");
-                    0
-                });
-            uart.write_full_blocking(out.as_ref());
+                .unwrap_or_default();
+            uart.write_full_blocking(&out[..size]);
             uart.write_full_blocking(b"\r\n");
         });
     }
 
-    fn xor_cipher(data: &mut String<30>) {
-        for (i, byte) in unsafe { data.as_bytes_mut() }.iter_mut().enumerate() {
+    fn xor_cipher(data: &mut [u8]) {
+        for (i, byte) in data.iter_mut().enumerate() {
             let key_byte = ENC_KEY[i % ENC_KEY.len()]; // This wraps the key
             *byte ^= key_byte;
             asm::delay(1000); // simulate a more involved operation on each byte
@@ -306,12 +310,14 @@ mod app {
         shared = [uart_tx],
     )]
     async fn decryptor(mut cx: decryptor::Context, data: String<30>) {
-        let mut out = String::<30>::new();
-        let _ = BASE64_STANDARD.decode_slice(data.as_bytes(), unsafe { out.as_bytes_mut() });
+        let mut out = [0; 100];
+        let size = BASE64_STANDARD
+            .decode_slice(data.as_bytes(), &mut out)
+            .unwrap_or_default();
         xor_cipher(&mut out);
         cx.shared.uart_tx.lock(|uart| {
             uart.write_full_blocking(b"Decryption done: ");
-            uart.write_full_blocking(out.as_ref());
+            uart.write_full_blocking(&out[..size]);
             uart.write_full_blocking(b"\r\n");
         });
     }

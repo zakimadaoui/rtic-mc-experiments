@@ -13,6 +13,8 @@ impl RticTask {
     /// Generates task definition, Context struct, resource proxies and binds task to appropriate interrupt
     pub fn generate_task_def(&self, shared_resources: Option<&SharedResources>) -> TokenStream2 {
         let cfg_core = multibin::multibin_cfg_core(self.args.core);
+        let allow_unused_not_core =
+            multibin::multibin_cfg_attr_not_core(self.args.core, quote! {allow(unused)});
         let task_ty = &self.task_struct.ident;
         let task_static_handle = &self.name_uppercase();
         let task_struct = &self.task_struct;
@@ -27,6 +29,7 @@ impl RticTask {
         quote! {
             #cfg_core
             static mut #task_static_handle: core::mem::MaybeUninit<#task_ty> = core::mem::MaybeUninit::uninit();
+            #allow_unused_not_core
             #task_struct
 
             #task_impl
