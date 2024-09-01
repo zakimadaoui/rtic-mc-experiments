@@ -570,6 +570,7 @@ dependencies = [
  "project-root",
  "quote",
  "syn 2.0.75",
+ "thiserror",
 ]
 
 [[package]]

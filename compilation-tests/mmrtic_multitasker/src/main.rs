@@ -13,10 +13,12 @@ use panic_probe as _;
 #[rtic::app(device = rp_pico::hal::pac, peripherals = false, dispatchers = [SW0_IRQ])]
 mod app {
 
+    use base64::prelude::BASE64_STANDARD;
+    use base64::Engine;
     use core::sync::atomic::{AtomicU32, Ordering};
     use cortex_m::asm;
     use fugit::{MicrosDurationU32, RateExtU32};
-    use heapless::String;
+    use heapless::{String, Vec};
     use rp2040_hal::gpio::bank0::{Gpio0, Gpio1, Gpio25};
     use rp2040_hal::gpio::{FunctionSio, FunctionUart, Pin, PullDown, SioOutput};
     use rp2040_hal::timer::{Alarm, Alarm0};
@@ -191,11 +193,9 @@ mod app {
                     self.read_command = true;
                     self.data.clear();
                     self.command = Command::Unknown;
-                } else {
-                    if *b != b' ' || !self.data.is_empty() {
-                        // read command argument data
-                        let _ = self.data.push(*b as char);
-                    }
+                } else if *b != b' ' || !self.data.is_empty() {
+                    // read command argument data
+                    let _ = self.data.push(*b as char);
                 }
             }
         }
@@ -298,7 +298,15 @@ mod app {
             xor_cipher(&mut data);
             self.shared().uart_tx.lock(|uart| {
                 uart.write_full_blocking(b"Encryption done: ");
-                uart.write_full_blocking(data.as_bytes());
+                let mut out = Vec::<u8, 41>::new(); // 40 bytes are needed to represent 30 raw bytes in base64 format
+                base64::engine::general_purpose::STANDARD
+                    .encode_slice(data.as_bytes(), &mut out)
+                    .unwrap_or_else(|_| {
+                        out.clear();
+                        let _ = out.extend_from_slice(b"error");
+                        0
+                    });
+                uart.write_full_blocking(out.as_ref());
                 uart.write_full_blocking(b"\r\n");
             });
         }
@@ -306,8 +314,31 @@ mod app {
     fn xor_cipher(data: &mut String<30>) {
         for (i, byte) in unsafe { data.as_bytes_mut() }.iter_mut().enumerate() {
             let key_byte = ENC_KEY[i % ENC_KEY.len()]; // This wraps the key
-            *byte = *byte ^ key_byte;
+            *byte ^= key_byte;
             asm::delay(1000); // simulate a more involved operation on each byte
+        }
+    }
+
+    #[sw_task(
+        priority = 3,
+        shared = [uart_tx],
+    )]
+    struct Decryptor;
+    impl RticSwTask for Decryptor {
+        type SpawnInput = String<30>;
+        fn init() -> Self {
+            Self
+        }
+
+        fn exec(&mut self, data: String<30>) {
+            let mut out = String::<30>::new();
+            let _ = BASE64_STANDARD.decode_slice(data.as_bytes(), unsafe { out.as_bytes_mut() });
+            xor_cipher(&mut out);
+            self.shared().uart_tx.lock(|uart| {
+                uart.write_full_blocking(b"Decryption done: ");
+                uart.write_full_blocking(out.as_ref());
+                uart.write_full_blocking(b"\r\n");
+            });
         }
     }
 

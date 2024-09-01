@@ -32,3 +32,4 @@ defmt = "0.3"
 defmt-rtt = "0.4"
 panic-probe = { version = "0.3", features = ["print-defmt"] }
 itoa = "1.0.11"
+base64 = { version = "0.22.1", default-features = false }
