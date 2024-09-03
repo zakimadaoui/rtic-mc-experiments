@@ -1,5 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/codegen/shared_resources.rs`."><title>shared_resources.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="rtic_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
-    <main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/codegen/shared_resources.rs`."><title>shared_resources.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-dd39b87e5fcfba68.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="rtic_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.80.1 (3f5fd8dd4 2024-08-06)" data-channel="1.80.1" data-search-js="search-d52510db62a78183.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-118b08c4c78b968e.js"></script><script defer src="../../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-20a3ad099b048cf2.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-df360f571f6edeae.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -136,12 +135,13 @@
 <a href="#135" id="135">135</a>
 <a href="#136" id="136">136</a>
 <a href="#137" id="137">137</a>
+<a href="#138" id="138">138</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>proc_macro2::TokenStream <span class="kw">as </span>TokenStream2;
 <span class="kw">use </span>quote::{format_ident, quote};
 
-<span class="kw">use </span><span class="kw">crate</span>::rtic_traits::MUTEX_TY;
 <span class="kw">use </span><span class="kw">crate</span>::parser::ast::{RticTask, SharedResources};
 <span class="kw">use </span><span class="kw">crate</span>::rtic_functions::get_resource_proxy_lock_fn;
+<span class="kw">use </span><span class="kw">crate</span>::rtic_traits::MUTEX_TY;
 <span class="kw">use crate</span>::{multibin, AppArgs, CorePassBackend, SubApp};
 
 <span class="kw">impl </span>SharedResources {
@@ -151,7 +151,7 @@
         <span class="kw">let </span>resources_ty = <span class="kw-2">&amp;</span>shared_struct.ident;
         <span class="kw">let </span>static_instance_name = <span class="kw-2">&amp;</span><span class="self">self</span>.name_uppercase();
 
-        <span class="macro">quote! </span>{
+        <span class="macro">quote!</span> {
             #cfg_core
             <span class="kw">static </span><span class="kw-2">mut </span>#static_instance_name: core::mem::MaybeUninit&lt;#resources_ty&gt; = core::mem::MaybeUninit::uninit();
             #cfg_core
@@ -182,10 +182,10 @@
                 <span class="kw-2">&amp;</span>static_mut_shared_resources,
             );
 
-            <span class="macro">quote! </span>{
+            <span class="macro">quote!</span> {
                 <span class="comment">// Resource proxy for `#element_name`
                 </span>#cfg_core
-                <span class="kw">struct </span>#proxy_name {
+                <span class="kw">pub struct </span>#proxy_name {
                     <span class="attr">#[doc(hidden)]
                     </span>task_priority: u16,
                 }
@@ -205,7 +205,7 @@
                 }
             }
         });
-        <span class="macro">quote! </span>{
+        <span class="macro">quote!</span> {
             #(#proxies)*
         }
     }
@@ -222,7 +222,7 @@
             <span class="kw">if let </span><span class="prelude-val">Some</span>(resource) = <span class="self">self</span>.get_field(resource_ident) {
                 <span class="kw">let </span>ident = <span class="kw-2">&amp;</span>resource.ident;
                 <span class="kw">let </span>proxy_type = utils::get_proxy_name(ident);
-                <span class="prelude-val">Some</span>(<span class="macro">quote! </span>{#ident: #proxy_type})
+                <span class="prelude-val">Some</span>(<span class="macro">quote!</span> {#ident: #proxy_type})
             } <span class="kw">else </span>{
                 <span class="prelude-val">None
             </span>}
@@ -230,12 +230,13 @@
         <span class="kw">let </span>field_and_proxytype2 = field_and_proxytype.clone();
 
         <span class="comment">// TODO: replace `shared(&amp;self)` with individual `shared_resource_name(&amp;self) -&gt; proxy_type`
+        // to avoid constructing the whole shared structure only for one resource access.
 
         </span><span class="kw">let </span>task_ty = task.name();
         <span class="kw">let </span>task_prio = task.args.priority;
         <span class="kw">let </span>task_shared_resources_struct =
             <span class="macro">format_ident!</span>(<span class="string">"__{}_shared_resources"</span>, task.name_snakecase());
-        <span class="macro">quote! </span>{
+        <span class="macro">quote!</span> {
             <span class="comment">// Shared resources access through shared() API for `#task_ty`
             </span>#cfg_core
             <span class="kw">impl </span>#task_ty {
@@ -247,7 +248,7 @@
 
             <span class="comment">// internal struct for `#task_ty` resource proxies
             </span>#cfg_core
-            <span class="kw">struct </span>#task_shared_resources_struct {
+            <span class="kw">pub struct </span>#task_shared_resources_struct {
                 #(<span class="kw">pub </span>#field_and_proxytype ,)*
             }
 

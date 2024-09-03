@@ -1,5 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/parser/ast.rs`."><title>ast.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="rtic_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
-    <main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/parser/ast.rs`."><title>ast.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-dd39b87e5fcfba68.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="rtic_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.80.1 (3f5fd8dd4 2024-08-06)" data-channel="1.80.1" data-search-js="search-d52510db62a78183.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-118b08c4c78b968e.js"></script><script defer src="../../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-20a3ad099b048cf2.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-df360f571f6edeae.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -270,17 +269,44 @@
 <a href="#269" id="269">269</a>
 <a href="#270" id="270">270</a>
 <a href="#271" id="271">271</a>
+<a href="#272" id="272">272</a>
+<a href="#273" id="273">273</a>
+<a href="#274" id="274">274</a>
+<a href="#275" id="275">275</a>
+<a href="#276" id="276">276</a>
+<a href="#277" id="277">277</a>
+<a href="#278" id="278">278</a>
+<a href="#279" id="279">279</a>
+<a href="#280" id="280">280</a>
+<a href="#281" id="281">281</a>
+<a href="#282" id="282">282</a>
+<a href="#283" id="283">283</a>
+<a href="#284" id="284">284</a>
+<a href="#285" id="285">285</a>
+<a href="#286" id="286">286</a>
+<a href="#287" id="287">287</a>
+<a href="#288" id="288">288</a>
+<a href="#289" id="289">289</a>
+<a href="#290" id="290">290</a>
+<a href="#291" id="291">291</a>
+<a href="#292" id="292">292</a>
+<a href="#293" id="293">293</a>
+<a href="#294" id="294">294</a>
+<a href="#295" id="295">295</a>
+<a href="#296" id="296">296</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::atomic::Ordering;
 
 <span class="kw">use </span>heck::ToSnakeCase;
 <span class="kw">use </span>proc_macro2::Span;
-<span class="kw">use </span>quote::ToTokens;
+<span class="kw">use </span>quote::{format_ident, ToTokens};
 <span class="kw">use </span>syn::{
-    parse::Parser, spanned::Spanned, Expr, ExprArray, Ident, ItemFn, ItemImpl, ItemStruct, LitInt,
-    Meta,
+    parse::Parser, spanned::Spanned, Expr, ExprArray, ExprLit, Ident, ItemFn, ItemImpl, ItemStruct,
+    Lit, LitInt, Meta,
 };
 
-<span class="kw">use </span><span class="kw">crate</span>::DEFAULT_TASK_PRIORITY;
+<span class="kw">use crate</span>::{
+    errors::ParseError, parse_utils::RticAttr, rtic_traits::HWT_TRAIT_TY, DEFAULT_TASK_PRIORITY,
+};
 
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>InitTask {
@@ -327,6 +353,8 @@
     <span class="comment">// list of identifiers for shared resources
     </span><span class="kw">pub </span>shared_idents: Vec&lt;Ident&gt;,
     <span class="kw">pub </span>core: u32,
+    <span class="comment">// tells whether a task is native to this compilation pass or if another compilation pass handles its trait implementation
+    </span><span class="kw">pub </span>task_trait: Ident,
 }
 
 <span class="kw">impl </span>TaskArgs {
@@ -337,10 +365,12 @@
                 priority: DEFAULT_TASK_PRIORITY.load(Ordering::Relaxed),
                 shared_idents: Default::default(),
                 core: <span class="number">0</span>,
+                task_trait: <span class="macro">format_ident!</span>(<span class="string">"{HWT_TRAIT_TY}"</span>),
             });
         };
 
         <span class="kw">let </span><span class="kw-2">mut </span>interrupt_handler_name: <span class="prelude-ty">Option</span>&lt;syn::Path&gt; = <span class="prelude-val">None</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>task_trait: <span class="prelude-ty">Option</span>&lt;Ident&gt; = <span class="prelude-val">None</span>;
         <span class="kw">let </span><span class="kw-2">mut </span>priority: <span class="prelude-ty">Option</span>&lt;LitInt&gt; = <span class="prelude-val">None</span>;
         <span class="kw">let </span><span class="kw-2">mut </span>shared: <span class="prelude-ty">Option</span>&lt;ExprArray&gt; = <span class="prelude-val">None</span>;
         <span class="kw">let </span><span class="kw-2">mut </span>core: <span class="prelude-ty">Option</span>&lt;LitInt&gt; = <span class="prelude-val">None</span>;
@@ -354,6 +384,8 @@
                 shared = <span class="prelude-val">Some</span>(meta.value()<span class="question-mark">?</span>.parse()<span class="question-mark">?</span>);
             } <span class="kw">else if </span>meta.path.is_ident(<span class="string">"core"</span>) {
                 core = <span class="prelude-val">Some</span>(meta.value()<span class="question-mark">?</span>.parse()<span class="question-mark">?</span>);
+            } <span class="kw">else if </span>meta.path.is_ident(<span class="string">"task_trait"</span>) {
+                task_trait = <span class="prelude-val">Some</span>(meta.value()<span class="question-mark">?</span>.parse()<span class="question-mark">?</span>);
             } <span class="kw">else </span>{
                 <span class="comment">// this is needed to advance the values iterator
                 </span><span class="kw">let _</span>: syn::Result&lt;Expr&gt; = meta.value()<span class="question-mark">?</span>.parse();
@@ -372,6 +404,7 @@
         <span class="kw">let </span>core = core
             .and_then(|core| core.base10_parse().ok())
             .unwrap_or_default();
+        <span class="kw">let </span>task_trait = task_trait.unwrap_or(<span class="macro">format_ident!</span>(<span class="string">"{HWT_TRAIT_TY}"</span>));
 
         <span class="kw">let </span>shared_idents = <span class="kw">if let </span><span class="prelude-val">Some</span>(shared) = shared {
             <span class="kw">let </span><span class="kw-2">mut </span>elements = Vec::with_capacity(shared.elems.len());
@@ -389,6 +422,7 @@
             priority,
             shared_idents,
             core,
+            task_trait,
         })
     }
 }
@@ -403,7 +437,7 @@
 </span><span class="kw">pub struct </span>RticTask {
     <span class="kw">pub </span>args: TaskArgs,
     <span class="kw">pub </span>task_struct: ItemStruct,
-    <span class="kw">pub </span>struct_impl: ItemImpl,
+    <span class="kw">pub </span>struct_impl: <span class="prelude-ty">Option</span>&lt;ItemImpl&gt;,
     <span class="kw">pub </span>user_initializable: bool, <span class="comment">// whether user should manually initialize this task during init
 </span>}
 
@@ -496,48 +530,63 @@
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>AppArgs {
     <span class="comment">// path to peripheral crate
-    </span><span class="kw">pub </span>device: syn::Path,
+    </span><span class="kw">pub </span>pacs: Vec&lt;syn::Path&gt;,
     <span class="kw">pub </span>peripherals: bool,
     <span class="kw">pub </span>cores: u32,
-    <span class="comment">// TODO: add other args as a map of string, expression pairs
-</span>}
+}
 
 <span class="kw">impl </span>AppArgs {
     <span class="kw">pub fn </span>parse(args: proc_macro2::TokenStream) -&gt; syn::Result&lt;<span class="self">Self</span>&gt; {
         <span class="kw">let </span>args_span = args.span();
-        <span class="kw">let </span><span class="kw-2">mut </span>device: <span class="prelude-ty">Option</span>&lt;syn::Path&gt; = <span class="prelude-val">None</span>;
-        <span class="kw">let </span><span class="kw-2">mut </span>peripherals: <span class="prelude-ty">Option</span>&lt;syn::LitBool&gt; = <span class="prelude-val">None</span>;
-        <span class="kw">let </span><span class="kw-2">mut </span>cores: <span class="prelude-ty">Option</span>&lt;syn::LitInt&gt; = <span class="prelude-val">None</span>;
-        syn::meta::parser(|meta| {
-            <span class="kw">if </span>meta.path.is_ident(<span class="string">"device"</span>) {
-                device = <span class="prelude-val">Some</span>(meta.value()<span class="question-mark">?</span>.parse()<span class="question-mark">?</span>);
-            } <span class="kw">else if </span>meta.path.is_ident(<span class="string">"peripherals"</span>) {
-                peripherals = <span class="prelude-val">Some</span>(meta.value()<span class="question-mark">?</span>.parse()<span class="question-mark">?</span>);
-            } <span class="kw">else if </span>meta.path.is_ident(<span class="string">"cores"</span>) {
-                cores = <span class="prelude-val">Some</span>(meta.value()<span class="question-mark">?</span>.parse()<span class="question-mark">?</span>)
-            } <span class="kw">else </span>{
-                <span class="comment">// this is needed to advance the values iterator
-                </span><span class="kw">let _</span>: syn::Result&lt;syn::Expr&gt; = meta.value()<span class="question-mark">?</span>.parse();
-            }
-            <span class="prelude-val">Ok</span>(())
-        })
-        .parse2(args)<span class="question-mark">?</span>;
 
-        <span class="kw">let </span><span class="prelude-val">Some</span>(device) = device <span class="kw">else </span>{
-            <span class="kw">return </span><span class="prelude-val">Err</span>(syn::Error::new(
-                args_span,
-                <span class="string">"device = path::to:pac must be provided."</span>,
-            ));
+        <span class="kw">let </span><span class="kw-2">mut </span>args = RticAttr::parse_from_tokens(<span class="kw-2">&amp;</span>args)<span class="question-mark">?</span>;
+
+        <span class="comment">// parse the number of cores
+        </span><span class="kw">let </span>cores = args.elements.remove(<span class="string">"cores"</span>);
+        <span class="kw">let </span>cores = <span class="kw">match </span>cores {
+            <span class="prelude-val">Some</span>(Expr::Lit(ExprLit {
+                lit: Lit::Int(lit_int),
+                ..
+            })) =&gt; lit_int.base10_parse()<span class="question-mark">?</span>,
+            <span class="kw">_ </span>=&gt; <span class="number">1_u32</span>,
         };
 
-        <span class="kw">let </span>cores = cores
-            .and_then(|cores| cores.base10_parse().ok())
-            .unwrap_or(<span class="number">1_u32</span>);
+        <span class="comment">// parse the path(s) to PAC(s)
+        </span><span class="kw">let </span>device = args
+            .elements
+            .remove(<span class="string">"device"</span>)
+            .ok_or(ParseError::DeviceArg.to_syn(args_span))<span class="question-mark">?</span>;
+
+        <span class="kw">let </span>pacs = <span class="kw">match </span>device {
+            Expr::Array(array_exp) =&gt; {
+                <span class="kw">if </span>array_exp.elems.len() != cores <span class="kw">as </span>usize {
+                    <span class="kw">return </span><span class="prelude-val">Err</span>(ParseError::DevicesCoresMismatch.to_syn(args_span));
+                }
+
+                <span class="kw">let </span><span class="kw-2">mut </span>devices = Vec::with_capacity(cores <span class="kw">as </span>usize);
+                <span class="kw">for </span>exp <span class="kw">in </span>array_exp.elems {
+                    <span class="kw">if let </span>Expr::Path(p) = exp {
+                        devices.push(p.path)
+                    } <span class="kw">else </span>{
+                        <span class="kw">return </span><span class="prelude-val">Err</span>(ParseError::DeviceNotPath.to_syn(args_span));
+                    }
+                }
+                devices
+            }
+            Expr::Path(path_to_pac) =&gt; {
+                <span class="kw">let </span><span class="kw-2">mut </span>devices = Vec::with_capacity(cores <span class="kw">as </span>usize);
+                <span class="kw">for _ in </span><span class="number">0</span>..cores {
+                    devices.push(path_to_pac.path.clone())
+                }
+                devices
+            }
+            <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(ParseError::DeviceNotPath.to_syn(args_span)),
+        };
 
         <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
-            device,
-            peripherals: peripherals.map_or(<span class="bool-val">false</span>, |f| f.value),
-            cores,
+            pacs,
+            peripherals: <span class="bool-val">false</span>, <span class="comment">// TODO: not supported yet
+            </span>cores,
         })
     }
 }

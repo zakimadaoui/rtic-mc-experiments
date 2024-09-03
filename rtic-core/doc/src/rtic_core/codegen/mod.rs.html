@@ -1,5 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/codegen/mod.rs`."><title>mod.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="rtic_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
-    <main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/codegen/mod.rs`."><title>mod.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-dd39b87e5fcfba68.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="rtic_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.80.1 (3f5fd8dd4 2024-08-06)" data-channel="1.80.1" data-search-js="search-d52510db62a78183.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-118b08c4c78b968e.js"></script><script defer src="../../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-20a3ad099b048cf2.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-df360f571f6edeae.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -266,14 +265,74 @@
 <a href="#265" id="265">265</a>
 <a href="#266" id="266">266</a>
 <a href="#267" id="267">267</a>
+<a href="#268" id="268">268</a>
+<a href="#269" id="269">269</a>
+<a href="#270" id="270">270</a>
+<a href="#271" id="271">271</a>
+<a href="#272" id="272">272</a>
+<a href="#273" id="273">273</a>
+<a href="#274" id="274">274</a>
+<a href="#275" id="275">275</a>
+<a href="#276" id="276">276</a>
+<a href="#277" id="277">277</a>
+<a href="#278" id="278">278</a>
+<a href="#279" id="279">279</a>
+<a href="#280" id="280">280</a>
+<a href="#281" id="281">281</a>
+<a href="#282" id="282">282</a>
+<a href="#283" id="283">283</a>
+<a href="#284" id="284">284</a>
+<a href="#285" id="285">285</a>
+<a href="#286" id="286">286</a>
+<a href="#287" id="287">287</a>
+<a href="#288" id="288">288</a>
+<a href="#289" id="289">289</a>
+<a href="#290" id="290">290</a>
+<a href="#291" id="291">291</a>
+<a href="#292" id="292">292</a>
+<a href="#293" id="293">293</a>
+<a href="#294" id="294">294</a>
+<a href="#295" id="295">295</a>
+<a href="#296" id="296">296</a>
+<a href="#297" id="297">297</a>
+<a href="#298" id="298">298</a>
+<a href="#299" id="299">299</a>
+<a href="#300" id="300">300</a>
+<a href="#301" id="301">301</a>
+<a href="#302" id="302">302</a>
+<a href="#303" id="303">303</a>
+<a href="#304" id="304">304</a>
+<a href="#305" id="305">305</a>
+<a href="#306" id="306">306</a>
+<a href="#307" id="307">307</a>
+<a href="#308" id="308">308</a>
+<a href="#309" id="309">309</a>
+<a href="#310" id="310">310</a>
+<a href="#311" id="311">311</a>
+<a href="#312" id="312">312</a>
+<a href="#313" id="313">313</a>
+<a href="#314" id="314">314</a>
+<a href="#315" id="315">315</a>
+<a href="#316" id="316">316</a>
+<a href="#317" id="317">317</a>
+<a href="#318" id="318">318</a>
+<a href="#319" id="319">319</a>
+<a href="#320" id="320">320</a>
+<a href="#321" id="321">321</a>
+<a href="#322" id="322">322</a>
+<a href="#323" id="323">323</a>
+<a href="#324" id="324">324</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>proc_macro2::TokenStream <span class="kw">as </span>TokenStream2;
 <span class="kw">use </span>quote::{format_ident, quote, ToTokens};
 <span class="kw">use </span>task_init::{generate_late_init_tasks_struct, generate_late_tasks_init_calls};
 
 <span class="kw">use </span><span class="kw">crate</span>::analysis::Analysis;
+<span class="kw">use </span><span class="kw">crate</span>::multibin::multibin_cfg_core;
 <span class="kw">use </span><span class="kw">crate</span>::parser::ast::{RticTask, SharedResources};
 <span class="kw">use </span><span class="kw">crate</span>::parser::{ast::IdleTask, App};
-<span class="kw">use </span><span class="kw">crate</span>::rtic_functions::{get_interrupt_free_fn, INTERRUPT_FREE_FN};
+<span class="kw">use </span><span class="kw">crate</span>::rtic_functions::{
+    generate_task_traits_check_functions, get_interrupt_free_fn, INTERRUPT_FREE_FN,
+};
 <span class="kw">use </span><span class="kw">crate</span>::rtic_traits::get_rtic_traits_mod;
 <span class="kw">use </span><span class="kw">crate</span>::CorePassBackend;
 
@@ -315,7 +374,7 @@
         </span><span class="kw">let </span>use_multibin_shared: <span class="prelude-ty">Option</span>&lt;TokenStream2&gt; = <span class="prelude-val">None</span>;
 
         <span class="kw">let </span>app_mod = <span class="kw-2">&amp;</span>app.app_name;
-        <span class="kw">let </span>peripheral_crate = <span class="kw-2">&amp;</span>app.args.device;
+        <span class="kw">let </span>peripheral_crate = generate_use_pac_statement(app);
         <span class="kw">let </span>user_includes = <span class="kw-2">&amp;</span>app.user_includes;
         <span class="kw">let </span>user_code = <span class="kw-2">&amp;</span>app.other_code;
         <span class="kw">let </span>interrupt_free_fn = get_interrupt_free_fn(implementation);
@@ -326,18 +385,21 @@
         <span class="comment">// sub_apps
         </span><span class="kw">let </span>sub_apps = <span class="self">self</span>.generate_sub_apps();
 
-        <span class="macro">quote! </span>{
+        <span class="comment">// task trait checks
+        </span><span class="kw">let </span>task_trait_check_functions = generate_task_traits_check_functions(<span class="self">self</span>.analysis);
+
+        <span class="macro">quote!</span> {
             <span class="kw">pub mod </span>#app_mod {
-                <span class="doccomment">/// Include peripheral crate that defines the vector table
-                </span><span class="kw">use </span>#peripheral_crate <span class="kw">as _</span>;
+                <span class="doccomment">/// Include peripheral crate(s) that defines the vector table
+                </span>#peripheral_crate
+
                 <span class="comment">// if multibin feature is enabled, add the this use statement
                 </span>#use_multibin_shared
 
                 <span class="doccomment">/// ================================== user includes ====================================
                 </span>#(#user_includes)*
                 <span class="doccomment">/// ==================================== rtic traits ====================================
-                </span><span class="kw">pub use </span>rtic_traits::<span class="kw-2">*</span>;
-                #rtic_traits_mod
+                </span>#rtic_traits_mod
                 <span class="doccomment">/// ================================== rtic functions ===================================
                 /// critical section function
                 </span>#interrupt_free_fn
@@ -346,6 +408,9 @@
 
                 <span class="comment">// sub applications
                 </span>#sub_apps
+
+                <span class="doccomment">/// Utility functions used to enforce implementing appropriate task traits
+                </span>#task_trait_check_functions
 
             }
         }
@@ -410,13 +475,13 @@
                 <span class="kw">let </span>shared_resource_ty = shared
                     .map(|s| s.strct.ident.to_token_stream())
                     .unwrap_or(<span class="macro">quote!</span>(<span class="string">"()"</span>));
-                <span class="macro">quote! </span>{
+                <span class="macro">quote!</span> {
                     <span class="kw">let </span>(__shared_resources, #tasks_initializer) : (#shared_resource_ty, #task_inits_ty) = #init_task(); <span class="comment">// call to init and get shared and local resources inits
                     </span>#(<span class="kw">unsafe </span>{#shared_resources_handle.write(__shared_resources);})* <span class="comment">// init shared resources
                     </span>#user_task_late_inits
                 }
             } <span class="kw">else </span>{
-                <span class="macro">quote! </span>{
+                <span class="macro">quote!</span> {
                     <span class="kw">let </span>shared_resources = #init_task();  <span class="comment">// call to init and get shared resources init
                     </span>#(<span class="kw">unsafe </span>{#shared_resources_handle.write(shared_resources);})* <span class="comment">// init shared resources
                 </span>}
@@ -431,7 +496,7 @@
             <span class="kw">let </span>def_core_type = generate_core_type(app.core);
 
             <span class="kw">let </span>doc = <span class="macro">format!</span>(<span class="string">" CORE {}"</span>, app.core);
-            <span class="macro">quote! </span>{
+            <span class="macro">quote!</span> {
                 <span class="attr">#[doc = <span class="string">" ===================================="</span>]
                 #[doc = #doc]
                 #[doc = <span class="string">" ==================================== "</span>]
@@ -487,7 +552,7 @@
         <span class="kw">let </span>idle_ty = <span class="kw-2">&amp;</span>idle.name();
         <span class="kw">let </span>idle_instance_name = <span class="kw-2">&amp;</span>idle.name_uppercase();
         <span class="kw">if </span>!idle.user_initializable {
-            <span class="macro">quote! </span>{
+            <span class="macro">quote!</span> {
                 <span class="kw">unsafe </span>{
                     #idle_instance_name.write(#idle_ty::init(()));
                     #idle_instance_name.assume_init_mut().exec();
@@ -496,14 +561,14 @@
             }
         } <span class="kw">else </span>{
             <span class="kw">let </span>idle_instance_name = <span class="kw-2">&amp;</span>idle.name_uppercase();
-            <span class="macro">quote! </span>{
+            <span class="macro">quote!</span> {
                 <span class="kw">unsafe </span>{
                     #idle_instance_name.assume_init_mut().exec();
                 }
             }
         }
     } <span class="kw">else </span>{
-        <span class="macro">quote! </span>{
+        <span class="macro">quote!</span> {
             <span class="kw">loop </span>{
                 #wfi
             }
@@ -519,7 +584,7 @@
     <span class="kw">let </span>mod_core_ty = utils::core_type_mod(core);
     <span class="kw">let </span>doc = <span class="macro">format!</span>(<span class="string">"Unique type for core {core}"</span>);
 
-    <span class="macro">quote! </span>{
+    <span class="macro">quote!</span> {
         <span class="attr">#[doc = #doc]
         </span><span class="kw">pub use </span>#mod_core_ty::#core_ty;
         <span class="kw">mod </span>#mod_core_ty {
@@ -530,6 +595,54 @@
                     #core_ty(#innter_core_ty)
                 }
             }
+        }
+    }
+}
+
+<span class="doccomment">/// This will generate the `user path::to::pac` statement. The output varies based on what features the distribution enables:
+///
+/// 1) If both `multipac` and `multibin` features are enabled, and the user provides a list of paths to PACs (i.e #app(device = [ path1, path2, ..])) the following will be generated
+/// ```
+/// #[cfg(core = '0')]
+/// use path1 as _;
+///
+/// #[cfg(core = '1')]
+/// use path2 as _;
+/// ```
+///
+/// 2) If only `multipac` feature is enabled, and the user provides a list of paths to PACs (i.e #app(device = [ path1, path2, ..])) the following will be generated
+/// ```
+/// use path1 as _;
+/// use path2 as _;
+/// ```
+///
+/// 3) If neither `multipac`, nor `multibin` features are enabled, or if the user provides a single path to PACs (i.e #app(device = path::to::pac ) the following will be generated
+/// ```
+/// use  path::to::pac as _;
+/// ```
+</span><span class="kw">fn </span>generate_use_pac_statement(app: <span class="kw-2">&amp;</span>App) -&gt; TokenStream2 {
+    <span class="kw">if </span><span class="macro">cfg!</span>(feature = <span class="string">"multipac"</span>) &amp;&amp; app.args.pacs.len() != <span class="number">1 </span>{
+        <span class="kw">if </span><span class="macro">cfg!</span>(feature = <span class="string">"multibin"</span>) {
+            <span class="kw">let </span>iter = app.args.pacs.iter().enumerate().map(|(core, pac)| {
+                <span class="kw">let </span>cfg_core = multibin_cfg_core(core <span class="kw">as </span>u32);
+                <span class="macro">quote!</span> {
+                 #cfg_core
+                 <span class="kw">use </span>#pac <span class="kw">as _</span>;
+                }
+            });
+            <span class="macro">quote!</span> {
+                #(#iter)*
+            }
+        } <span class="kw">else </span>{
+            <span class="kw">let </span>pacs = <span class="kw-2">&amp;</span>app.args.pacs;
+            <span class="macro">quote!</span> {
+                <span class="kw">use </span>#(#pacs)* <span class="kw">as _</span>;
+            }
+        }
+    } <span class="kw">else </span>{
+        <span class="kw">let </span>path_to_pac = <span class="kw-2">&amp;</span>app.args.pacs[<span class="number">0</span>];
+        <span class="macro">quote!</span> {
+            <span class="kw">use </span>#path_to_pac <span class="kw">as _</span>;
         }
     }
 }

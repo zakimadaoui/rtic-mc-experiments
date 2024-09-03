@@ -131,7 +131,7 @@ mod app {
             },
             TaskInits {
                 command_receiver_task: CommandReceiverTask::init(uart_rx),
-                command_executor_task: CommandExecutorTask::init(led_pin),
+                timed_led_toggler: TimedLedToggler::init(led_pin),
             },
         )
     }
@@ -256,11 +256,11 @@ mod app {
         priority = 2,
         shared = [ uart_tx, alarm, target_blinks],
     )]
-    pub struct CommandExecutorTask {
+    pub struct TimedLedToggler {
         led: LedPin,
     }
 
-    impl RticTask for CommandExecutorTask {
+    impl RticTask for TimedLedToggler {
         type InitArgs = LedPin;
         fn init(led: LedPin) -> Self {
             Self { led }

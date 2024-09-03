@@ -1,9 +1,12 @@
-//! TODO: Crate level documentation needed to describe the following:
-//! - a distribution
-//! - a compilation pass
-//! - how compilation passes work
-//! - the built-in core compilation pass
-//! - guidelines for implementing new distributions, links, and link to template distribution
+//! This is a re-usable crate that captures the **hardware agnostic** proc-macro logic for RTIC's tasks and resources syntax model (both single and multicore syntax). I.e the user code parsing, analysis and generation for hardware tasks, local resources, shared resources and their locking mechanism, system init and idle tasks.
+//!
+//! In addition, this crate provides utilities for building the actual RTIC crate (known as an **RTIC distribution**) that exports the RTIC framework attribute procedural macro for a specific target hardware architecture. Further more, the same utilizes allow extending the **core syntax** provided by this crate through the concept of **Compilation passes**. As a result, this crate is not meant to be used directly by users who want to write RTIC applications, instead it is used by **RTIC distribution** implementors.
+//! 
+#![doc = include_str!("../../compilation_passes.md")]
+#![doc = include_str!("../../rtic_distributions.md")]
+//! 
+//! ### Guidelines for implementing new distributions, links, and link to template distribution
+//! TODO...
 
 extern crate proc_macro;
 

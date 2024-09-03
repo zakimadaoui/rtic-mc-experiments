@@ -1,5 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/lib.rs`."><title>lib.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="rtic_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
-    <main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/lib.rs`."><title>lib.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-dd39b87e5fcfba68.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="rtic_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.80.1 (3f5fd8dd4 2024-08-06)" data-channel="1.80.1" data-search-js="search-d52510db62a78183.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-118b08c4c78b968e.js"></script><script defer src="../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-20a3ad099b048cf2.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-df360f571f6edeae.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -152,12 +151,19 @@
 <a href="#151" id="151">151</a>
 <a href="#152" id="152">152</a>
 <a href="#153" id="153">153</a>
-</pre></div><pre class="rust"><code><span class="doccomment">//! TODO: Crate level documentation needed to describe the following:
-//! - a distribution 
-//! - a compilation pass 
-//! - how compilation passes work
-//! - the built-in core compilation pass 
-//! - guidelines for implementing new distributions, links, and link to template distribution
+<a href="#154" id="154">154</a>
+<a href="#155" id="155">155</a>
+<a href="#156" id="156">156</a>
+<a href="#157" id="157">157</a>
+</pre></div><pre class="rust"><code><span class="doccomment">//! This is a re-usable crate that captures the **hardware agnostic** proc-macro logic for RTIC's tasks and resources syntax model (both single and multicore syntax). I.e the user code parsing, analysis and generation for hardware tasks, local resources, shared resources and their locking mechanism, system init and idle tasks.
+//!
+//! In addition, this crate provides utilities for building the actual RTIC crate (known as an **RTIC distribution**) that exports the RTIC framework attribute procedural macro for a specific target hardware architecture. Further more, the same utilizes allow extending the **core syntax** provided by this crate through the concept of **Compilation passes**. As a result, this crate is not meant to be used directly by users who want to write RTIC applications, instead it is used by **RTIC distribution** implementors.
+//! 
+</span><span class="attr">#![doc = <span class="macro">include_str!</span>(<span class="string">"../../compilation_passes.md"</span>)]
+#![doc = <span class="macro">include_str!</span>(<span class="string">"../../rtic_distributions.md"</span>)]
+</span><span class="doccomment">//! 
+//! ### Guidelines for implementing new distributions, links, and link to template distribution
+//! TODO...
 
 </span><span class="kw">extern crate </span>proc_macro;
 
@@ -182,6 +188,7 @@
 <span class="kw">mod </span>backend;
 <span class="kw">mod </span>codegen;
 <span class="kw">mod </span>common_internal;
+<span class="kw">pub mod </span>errors;
 <span class="kw">pub mod </span>parse_utils;
 
 <span class="kw">mod </span>parser;
@@ -189,13 +196,13 @@
 <span class="kw">static </span>DEFAULT_TASK_PRIORITY: AtomicU16 = AtomicU16::new(<span class="number">0</span>);
 
 <span class="doccomment">/// A trait that allows defining a **Compilation Pass**.
-/// 
-/// A **Compilation Pass** can be thought of as a (partial) proc-macro that expands parts of the user RTIC application 
-/// once all the compilation passes provided using [RticMacroBuilder::bind_pre_core_pass] and 
-/// [RticMacroBuilder::bind_post_core_pass] are run. The resulting code should be comprised only of *init*, *idle* , 
+///
+/// A **Compilation Pass** can be thought of as a (partial) proc-macro that expands parts of the user RTIC application
+/// once all the compilation passes provided using [RticMacroBuilder::bind_pre_core_pass] and
+/// [RticMacroBuilder::bind_post_core_pass] are run. The resulting code should be comprised only of *init*, *idle* ,
 /// *shared resources* and *tasks* (that may be bound to interrupts) that share those resources. The **Core Pass**
 /// then will take over from there to generate all the necessary logic and expand the user application further to an
-/// application understandable by the Rust compiler. 
+/// application understandable by the Rust compiler.
 </span><span class="kw">pub trait </span>RticPass {
     <span class="doccomment">/// Runs the (partial) proc-macro logic that allows extending the basic RTIC syntax
     </span><span class="kw">fn </span>run_pass(
@@ -204,13 +211,13 @@
         app_mod: ItemMod,
     ) -&gt; syn::Result&lt;(TokenStream2, ItemMod)&gt;;
 
-    <span class="doccomment">/// Returns a human readable name/alias used to identify the pass. This identifier will show np in errors for example 
+    <span class="doccomment">/// Returns a human readable name/alias used to identify the pass. This identifier will show np in errors for example
     /// to help knowing exactly which compilation pass has failed in that case.
     </span><span class="kw">fn </span>pass_name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str;
 }
 
-<span class="doccomment">/// This should be used to compose an **RTIC distribution**. In other words, it allows building the RTIC **app** macro 
-/// By providing the necessary low-level hardware bindings and binding additional **Compilation Passes** 
+<span class="doccomment">/// This should be used to compose an **RTIC distribution**. In other words, it allows building the RTIC **app** macro
+/// By providing the necessary low-level hardware bindings and binding additional **Compilation Passes**
 /// in the case syntax extensions are desired.
 </span><span class="kw">pub struct </span>RticMacroBuilder {
     core: Box&lt;<span class="kw">dyn </span>CorePassBackend&gt;,
@@ -241,7 +248,7 @@
 
     <span class="doccomment">/// Once the **CorePass** low level hardware bindings are provided, and a selection of **Compilation Passes** are binded
     /// too, use this method to run the **app** proc macro logic.
-    /// 
+    ///
     /// Returns a TokenStream of the expanded user application.
     </span><span class="kw">pub fn </span>build_rtic_macro(<span class="self">self</span>, args: TokenStream, input: TokenStream) -&gt; TokenStream {
         <span class="comment">// init statics
@@ -274,7 +281,7 @@
                 <span class="kw">return </span>e.to_compile_error().into();
             }
         };
-        
+
         <span class="comment">// update resource ceilings and gather more information about the application
         </span><span class="kw">let </span>analysis = <span class="kw">match </span>Analysis::run(<span class="kw-2">&amp;mut </span>parsed_app) {
             <span class="prelude-val">Ok</span>(a) =&gt; a,

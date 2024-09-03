@@ -1,5 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/backend.rs`."><title>backend.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-ac92e1bbe349e143.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="rtic_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0 (07dca489a 2024-02-04)" data-channel="1.76.0" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
-    <main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/backend.rs`."><title>backend.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-dd39b87e5fcfba68.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="rtic_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.80.1 (3f5fd8dd4 2024-08-06)" data-channel="1.80.1" data-search-js="search-d52510db62a78183.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-118b08c4c78b968e.js"></script><script defer src="../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-20a3ad099b048cf2.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-df360f571f6edeae.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -221,23 +220,11 @@
 <a href="#220" id="220">220</a>
 <a href="#221" id="221">221</a>
 <a href="#222" id="222">222</a>
-<a href="#223" id="223">223</a>
-<a href="#224" id="224">224</a>
-<a href="#225" id="225">225</a>
-<a href="#226" id="226">226</a>
-<a href="#227" id="227">227</a>
-<a href="#228" id="228">228</a>
-<a href="#229" id="229">229</a>
-<a href="#230" id="230">230</a>
-<a href="#231" id="231">231</a>
-<a href="#232" id="232">232</a>
-</pre></div><pre class="rust"><code>
-<span class="kw">use super</span>::<span class="kw-2">*</span>;
+</pre></div><pre class="rust"><code><span class="kw">use super</span>::<span class="kw-2">*</span>;
 
-<span class="doccomment">/// Interface for providing the low-level hardware bindings specific for a target(s) (A.k.a The Backend) to be used during code generation phase 
-/// of the **Core Compilation Pass*. 
+<span class="doccomment">/// Interface for providing the low-level hardware bindings specific for a target(s) (A.k.a The Backend) to be used during code generation phase
+/// of the **Core Compilation Pass*.
 </span><span class="kw">pub trait </span>CorePassBackend {
-    
     <span class="doccomment">/// # Setting up the system
     /// Implementation must return the TokenStream to be inserted **AFTER** the call to Global `#[init]` and tasks init() functions,
     /// and **BEFORE** starting the idle task.
@@ -254,10 +241,8 @@
     /// This function will be called several times in case of a multicore system, each time with different `app_info` and `app_analysis`.
     /// ## Arguments
     /// - `app_args`: arguments provided to the #[app(...)] macro attribute, this includes paths to PACs, number of cores...
-    /// - `app_info`: Contains the parsed user application. For single core this will be the full application.
-    /// For multicore, this represents only a sub-application corresponding to a specific core.
-    /// - `app_analysis`: Information about the analyzed application. For single core this will be the analysis of the full application.
-    /// For multicore, this represents the analysis of a sub-application corresponding to a specific core.
+    /// - `app_info`: Contains the parsed user application. For single core this will be the full application. For multicore, this represents only a sub-application corresponding to a specific core.
+    /// - `app_analysis`: Information about the analyzed application. For single core this will be the analysis of the full application. For multicore, this represents the analysis of a sub-application corresponding to a specific core.
     </span><span class="kw">fn </span>post_init(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         app_args: <span class="kw-2">&amp;</span>AppArgs,
@@ -266,11 +251,11 @@
     ) -&gt; <span class="prelude-ty">Option</span>&lt;TokenStream2&gt;;
 
     <span class="doccomment">/// # SRP-based Resource locking implementation
-    /// 
-    /// The provided method argument `incomplete_lock_fn` holds the TokenStream representation of an incomplete function named `lock` responsible for locking a distinct resource in the system. The distribution must generate the missing target-specific logic for implementing the locking of that resource. 
-    /// 
-    /// To illustrate this further with an example, let's assume the user defined the following shared resources: 
-    /// 
+    ///
+    /// The provided method argument `incomplete_lock_fn` holds the TokenStream representation of an incomplete function named `lock` responsible for locking a distinct resource in the system. The distribution must generate the missing target-specific logic for implementing the locking of that resource.
+    ///
+    /// To illustrate this further with an example, let's assume the user defined the following shared resources:
+    ///
     /// ```rust
     /// // Before code expansion
     /// #[shared]
@@ -278,9 +263,9 @@
     ///     pub resource1: R1Type
     /// }
     /// ```
-    /// 
+    ///
     /// Every field of the shared resources struct has a corresponding autogenerated **resource proxy** struct that implements the `RticMutex` internal trait. as follows:
-    /// 
+    ///
     /// ```rust
     /// struct __resource1_mutex {
     ///     #[doc(hidden)]
@@ -297,19 +282,19 @@
     ///     }
     /// }
     /// ```
-    /// 
+    ///
     /// Each time RTIC needs to generate an implementation of the `RticMutex` trait for a **resource proxy**, it calls the method [CorePassBackend::generate_resource_proxy_lock_impl] to ask the backend to populate the missing details of the [lock] function for that particular resource.
-    /// 
+    ///
     /// ## Contract
     ///
     ///* The returned value representing the populated function must have the same signature as `incomplete_lock_fn'.
     ///     
-    ///* The implementation must be according to SRP rules such that: 
+    ///* The implementation must be according to SRP rules such that:
     ///    * System interrupt priority ceiling is raised to the value of `CEILING`.
     ///    * The closure `f` is called and `resource_ref` is passed to it as a parameter. (to execute the resource critical section).
     ///    * System interrupt priority ceiling should be restored back to `task_priority` value.     
     ///* If global definitions need to be generated for use in the locking implementation, the trait method which will be described next should be used to cover such need.
-    /// 
+    ///
     /// ## Note
     /// This trait method is called for every shared resource in every sub-application.
     ///
@@ -335,10 +320,8 @@
     ///
     /// ## Arguments
     /// - `app_args`: arguments provided to the #[app(...)] macro attribute, this includes paths to PACs, number of cores...
-    /// - `app_info`: Contains the parsed user application. For single core this will be the full application.
-    /// For multicore, this represents only a sub-application corresponding to a specific core.
-    /// - `app_analysis`: Information about the analyzed application. For single core this will be the analysis of the full application.
-    /// For multicore, this represents the analysis of a sub-application corresponding to a specific core.
+    /// - `app_info`: Contains the parsed user application. For single core this will be the full application. For multicore, this represents only a sub-application corresponding to a specific core.
+    /// - `app_analysis`: Information about the analyzed application. For single core this will be the analysis of the full application. For multicore, this represents the analysis of a sub-application corresponding to a specific core.
     </span><span class="kw">fn </span>generate_global_definitions(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         app_args: <span class="kw-2">&amp;</span>AppArgs,
@@ -365,12 +348,12 @@
 
     <span class="doccomment">/// # Entry name for a specific core
     /// This trait method allows specifying the name of the entry function on each core.
-    /// 
+    ///
     /// ## Use case
     /// This trait method is especially useful for multicore applications that result in a single output binary (single-binary systems)
     /// where there are multiple entries (one for each core) but only one entry must to be named `main` while other entries are given
     /// other unique identifiers.
-    /// 
+    ///
     /// ## Contract
     /// - For single-core and multi-binary multicore distributions, this trait method should always return "main" as the entry name.  
     /// - For single-binary multicore distributions, return "main" once only, then different identifiers should be used for other cores entries.
@@ -405,9 +388,9 @@
     </span><span class="kw">fn </span>populate_idle_loop(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;TokenStream2&gt;;
 
     <span class="doccomment">/// # Non-preemptable code sections
-    /// The RTIC implementation occasionally generates code that must run in a non-preemptable fashion. Therefore, a 
-    /// distribution must provide the implementation of this trait method to populate the body of `empty_body_fn` with 
-    /// the low-level implementation required to generate the function to be used to execute non-interruptible code 
+    /// The RTIC implementation occasionally generates code that must run in a non-preemptable fashion. Therefore, a
+    /// distribution must provide the implementation of this trait method to populate the body of `empty_body_fn` with
+    /// the low-level implementation required to generate the function to be used to execute non-interruptible code
     /// (i.e a traditional critical sections)
     ///
     /// The `empty_body_fn` argument, is a token stream for a function that expands to the following:
@@ -421,15 +404,15 @@
     /// ```
     ///
     /// ## Contract
-    /// - You MUST not change the function signature (of `empty_body_fn`) 
+    /// - You MUST not change the function signature (of `empty_body_fn`)
     /// - The generated function must re-enable interrupts at end of the critical section.
     </span><span class="kw">fn </span>generate_interrupt_free_fn(<span class="kw-2">&amp;</span><span class="self">self</span>, empty_body_fn: syn::ItemFn) -&gt; syn::ItemFn;
 
-    <span class="doccomment">/// # The "multibin" feature additional requirements 
+    <span class="doccomment">/// # The "multibin" feature additional requirements
     /// If a distribution enables `multibin` feature to allow targeting a multi-binary target, then the distibution must:
     /// - re-export microamp crate
     /// - implement this trait method to provide  te path to the re-exported `shared` attribute macro from microamp crate.
-    /// 
+    ///
     /// Example implementation can be
     /// ```rust
     /// fn multibin_shared_macro_path() -&gt; syn::Path {
@@ -449,17 +432,14 @@
     /// Implement this method to validate/analyze the resulting parsed and analyzed user application before the code generation phase starts.
     ///
     /// ## Use case
-    /// In certain cases, some checks/validation related to implementation/hardware specific details need to be made before allowing the user code to be expanded. 
-    /// An example, could be that the user has attempted to use an Exception line as for a dispatcher, but the distribution needs to forbid that. 
+    /// In certain cases, some checks/validation related to implementation/hardware specific details need to be made before allowing the user code to be expanded.
+    /// An example, could be that the user has attempted to use an Exception line as for a dispatcher, but the distribution needs to forbid that.
     /// Implementing this trait method, gives the ability to enforcing such checks.
-    </span><span class="kw">fn </span>pre_codgen_validation(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        app: <span class="kw-2">&amp;</span>App,
-        analysis: <span class="kw-2">&amp;</span>Analysis,
-    ) -&gt; syn::Result&lt;()&gt;;
+    </span><span class="kw">fn </span>pre_codgen_validation(<span class="kw-2">&amp;</span><span class="self">self</span>, app: <span class="kw-2">&amp;</span>App, analysis: <span class="kw-2">&amp;</span>Analysis) -&gt; syn::Result&lt;()&gt;;
 
     <span class="doccomment">/// Implementation must return the default task priority to be used in idle task and tasks when priority argument value is not provided by the user.
     </span><span class="kw">fn </span>default_task_priority(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u16;
 
-    <span class="comment">//FIXME: need to add a trait method that returns the distribution crate name to use instead of rtic::path::to::something... 
-</span>}</code></pre></div></section></main></body></html>
+    <span class="comment">//FIXME: need to add a trait method that returns the distribution crate name to use instead of rtic::path::to::something...
+</span>}
+</code></pre></div></section></main></body></html>
