@@ -2,11 +2,16 @@ use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 use syn::{parse_quote, ImplItem, ImplItemFn};
 
+#[cfg(feature = "multibin")]
+use crate::multibin::{multibin_cfg_core, multibin_cfg_not_core};
 use crate::{
     codegen::utils,
-    multibin::{self, multibin_cfg_core, multibin_cfg_not_core},
     parser::ast::{HardwareTask, RticTask, SharedResources},
     CorePassBackend,
+};
+use crate::{
+    multibin::{self},
+    rtic_functions,
 };
 
 impl RticTask {
@@ -19,9 +24,12 @@ impl RticTask {
         let task_static_handle = &self.name_uppercase();
         let task_struct = &self.task_struct;
         let task_impl = &self.struct_impl;
+        let task_trait_check = rtic_functions::trait_check_call_for(self);
 
         #[cfg(feature = "multibin")]
-        let task_impl = process_task_impl(task_impl, self.args.core);
+        let task_impl = task_impl
+            .as_ref()
+            .map(|t| process_task_impl(t, self.args.core));
 
         let task_prio_impl = self.generate_priority_func();
         let shared_mod = shared_resources.map(|shared| shared.generate_shared_for_task(self));
@@ -31,8 +39,10 @@ impl RticTask {
             static mut #task_static_handle: core::mem::MaybeUninit<#task_ty> = core::mem::MaybeUninit::uninit();
             #allow_unused_not_core
             #task_struct
+            #task_trait_check
 
             #task_impl
+
 
             #task_prio_impl
             #shared_mod
@@ -69,7 +79,7 @@ impl RticTask {
         quote! {
             #cfg_core
             impl #task_name {
-                const fn current_core() -> #core_type {
+                pub const fn current_core() -> #core_type {
                     unsafe {#core_type::new()}
                 }
             }
@@ -81,7 +91,7 @@ impl RticTask {
 /// Only the core that runs the task should contain the task trait implementation (init() and exec()).
 /// However, because all the cores have a copy of the task struct (which must implement the task trait .. chicken-egg problem),
 /// we solve this problem by reducing as much code as possible for the other cores by emptying their implemented functions.  
-#[allow(unused)]
+#[cfg(feature = "multibin")]
 fn process_task_impl(task_impl: &syn::ItemImpl, core: u32) -> TokenStream2 {
     let cfg_core =
         multibin_cfg_core(core).expect("multibin is enabled, so this fn must not return none");
@@ -139,7 +149,12 @@ impl HardwareTask {
     /// If the type InitArgs is not implement it generate a default implementation
     /// If the type InitArgs is implemented, generate a custom initialization function for the task
     pub fn adjust_task_impl_initialization(&mut self) -> syn::Result<()> {
-        let task_impl = &mut self.struct_impl;
+        let Some(task_impl) = &mut self.struct_impl else {
+            // if the trait implementation of the task is not found on the parsed module (external task implementation)
+            // the ask the user to provide explicit initialization.
+            self.user_initializable = true;
+            return Ok(());
+        };
 
         let default_init_type_def: syn::ImplItemType = parse_quote!(
             type InitArgs = ();

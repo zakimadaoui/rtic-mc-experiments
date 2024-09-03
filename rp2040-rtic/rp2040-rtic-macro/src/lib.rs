@@ -218,7 +218,7 @@ impl SwPassBackend for SwPassBackendImpl {
     /// Provide the implementation/body of the cross-core interrupt pending function.
     fn generate_cross_pend_fn(&self, mut empty_body_fn: ItemFn) -> Option<ItemFn> {
         let body = parse_quote!({
-            rtic::export::cross_core::pend_irq(irq_nbr);
+            let _ = rtic::export::cross_core::pend_irq(irq_nbr);
         });
         empty_body_fn.block = Box::new(body);
         Some(empty_body_fn)

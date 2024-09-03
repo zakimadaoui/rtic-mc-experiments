@@ -105,7 +105,7 @@ impl AppParameters {
 pub struct SoftwareTask {
     pub params: TaskParams,
     pub task_struct: ItemStruct,
-    pub task_impl: ItemImpl,
+    pub task_impl: Option<ItemImpl>,
 }
 
 impl SoftwareTask {

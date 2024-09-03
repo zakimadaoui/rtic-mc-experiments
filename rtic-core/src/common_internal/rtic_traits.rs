@@ -13,7 +13,8 @@ pub(crate) fn get_rtic_traits_mod() -> TokenStream2 {
     let mutex_trait = mutex_trait();
     quote! {
         /// Module defining rtic traits
-        mod rtic_traits {
+        pub use rtic_traits::*;
+        pub mod rtic_traits {
             #hw_task_trait
             #idle_trait
             #mutex_trait

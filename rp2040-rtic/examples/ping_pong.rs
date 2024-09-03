@@ -131,6 +131,6 @@ pub mod my_app {
 
     /// Reads core number (0 or 1) from the rp2040 CPUID register
     fn get_core_id() -> u32 {
-        unsafe { (&(*pac::SIO::PTR)).cpuid.read().bits() }
+        unsafe { (*pac::SIO::PTR).cpuid.read().bits() }
     }
 }

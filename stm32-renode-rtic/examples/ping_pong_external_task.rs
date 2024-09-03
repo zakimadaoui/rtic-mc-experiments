@@ -39,7 +39,7 @@ pub mod my_app {
         tx2: Tx<USART3>,
     }
 
-    const PING_PONG_DELAY: u32 = 30000000;
+    pub const PING_PONG_DELAY: u32 = 30000000;
 
     // ======================================= CORE 0 ==============================================
     #[init(core = 0)]
@@ -103,30 +103,19 @@ pub mod my_app {
     }
 
     /// a Core0 task to be spawned by a task on Core1
+    /// in `multibin` systems, the task trait implementation but be implemented inside the `app` module
+    /// one workaround to move the tasks's functionality outside is as follows
+    /// define a `external_exec` function on an external module 
+    /// any  impl `Core0Task` must be guarded by #[cfg(core = "0")]
     #[sw_task(priority = 1, spawn_by = 1, core = 0, shared = [tx])]
-    struct Core0Task;
+    pub struct Core0Task;
     impl RticSwTask for Core0Task {
         type SpawnInput = u32;
+        fn exec(&mut self, ping: Self::SpawnInput) {
+            self.external_exec(ping);
+        }
         fn init() -> Self {
             Self
-        }
-
-        fn exec(&mut self, ping: Self::SpawnInput) {
-            assert_eq!(get_core_id(), 0); // assert that this is executing on core 0
-            asm::delay(PING_PONG_DELAY); // add some delay for visualization
-            let pong = ping + 1;
-            self.shared().tx.lock(|tx| {
-                writeln!(tx, "CORE0: Got ping {}, sending pong {}", ping, pong).unwrap();
-            });
-            if let Err(_e) = Core1Task::spawn_from(Self::current_core(), pong) {
-                self.shared().tx.lock(|tx| {
-                    writeln!(tx, "couldn't spawn task on core 1 from core 0").unwrap();
-                });
-            }
-
-            // UNCOMMENT NEXT STATEMENT TO SEE THAT IT IS NOT ALLOWED
-            // BECAUSE TASK IS MARKED BY `spawn_by = 1`. I.e only core 1 can spawn this task
-            // let _ = Core0Task::spawn_from(Self::current_core(), 1);
         }
     }
 
@@ -176,7 +165,7 @@ pub mod my_app {
 
     /// a Core1 task to be spawned by a task on Core0
     #[sw_task(priority = 2, core = 1, spawn_by = 0, shared = [tx2])]
-    struct Core1Task;
+    pub struct Core1Task;
     impl RticSwTask for Core1Task {
         type SpawnInput = u32;
         fn init() -> Self {
@@ -207,7 +196,7 @@ pub mod my_app {
     // ======================================== UTILS ==============================================
 
     /// Reads core number (0 or 1)
-    const fn get_core_id() -> u32 {
+    pub const fn get_core_id() -> u32 {
         #[cfg(core = "0")]
         {
             0
@@ -215,6 +204,32 @@ pub mod my_app {
         #[cfg(not(core = "0"))]
         {
             1
+        }
+    }
+}
+
+pub mod external_mod {
+    use crate::my_app::*;
+    use core::fmt::Write;
+
+    #[cfg(core = "0")]
+    impl Core0Task {
+        pub fn external_exec(&mut self, ping: u32) {
+            assert_eq!(get_core_id(), 0); // assert that this is executing on core 0
+            cortex_m::asm::delay(PING_PONG_DELAY); // add some delay for visualization
+            let pong = ping + 1;
+            self.shared().tx.lock(|tx| {
+                writeln!(tx, "CORE0: Got ping {}, sending pong {}", ping, pong).unwrap();
+            });
+            if let Err(_e) = Core1Task::spawn_from(Self::current_core(), pong) {
+                self.shared().tx.lock(|tx| {
+                    writeln!(tx, "couldn't spawn task on core 1 from core 0").unwrap();
+                });
+            }
+
+            // UNCOMMENT NEXT STATEMENT TO SEE THAT IT IS NOT ALLOWED
+            // BECAUSE TASK IS MARKED BY `spawn_by = 1`. I.e only core 1 can spawn this task
+            // let _ = Core0Task::spawn_from(Self::current_core(), 1);
         }
     }
 }

@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use proc_macro2::Span;
+use quote::format_ident;
 use syn::{spanned::Spanned, Ident, Item, ItemFn, ItemImpl, ItemStruct, ItemUse, Type};
 
 use ast::*;
@@ -194,19 +195,13 @@ impl App {
             let args = TaskArgs::parse(attr.meta)?;
 
             // find the task struct impl
-            let struct_impl =
-                task_impls
-                    .get(&task_struct.ident.to_string())
-                    .ok_or(syn::Error::new(
-                        task_struct.span(),
-                        "This task does not implement one of rtic task traits.",
-                    ))?;
+            let struct_impl = task_impls.get(&task_struct.ident.to_string());
 
             let tasks = out.entry(args.core).or_insert_with(Vec::new);
             let mut task = RticTask {
                 args,
                 task_struct,
-                struct_impl: struct_impl.clone(),
+                struct_impl: struct_impl.cloned(),
                 user_initializable: false, //initially this is false.
             };
             task.adjust_task_impl_initialization()?; // adjust the init method and args type of the task trait implementation
@@ -223,22 +218,17 @@ impl App {
             .into_iter()
             .map(|(mut idle_struct, init_attr_idx)| {
                 // find the task struct impl
-                let struct_impl =
-                    task_impls
-                        .get(&idle_struct.ident.to_string())
-                        .ok_or(syn::Error::new(
-                            idle_struct.span(),
-                            format!("This task must implement {IDLE_TRAIT_TY} trait."),
-                        ))?;
+                let struct_impl = task_impls.get(&idle_struct.ident.to_string());
 
                 // remove the #[idle]
                 let attrs = idle_struct.attrs.remove(init_attr_idx);
-                let args = TaskArgs::parse(attrs.meta)?;
+                let mut args = TaskArgs::parse(attrs.meta)?;
+                args.task_trait = format_ident!("{IDLE_TRAIT_TY}"); // correct the trait type for idle
                 let core = args.core;
                 let mut task = IdleTask {
                     args,
                     task_struct: idle_struct,
-                    struct_impl: struct_impl.clone(),
+                    struct_impl: struct_impl.cloned(),
                     user_initializable: false,
                 };
                 task.adjust_task_impl_initialization()?; // adjust the init method and args type of the task trait implementation

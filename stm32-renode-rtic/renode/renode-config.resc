@@ -27,4 +27,6 @@ macro reset
 """
 
 runMacro $reset
+peripherals
 start
+

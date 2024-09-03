@@ -2,13 +2,15 @@ use std::sync::atomic::Ordering;
 
 use heck::ToSnakeCase;
 use proc_macro2::Span;
-use quote::ToTokens;
+use quote::{format_ident, ToTokens};
 use syn::{
     parse::Parser, spanned::Spanned, Expr, ExprArray, ExprLit, Ident, ItemFn, ItemImpl, ItemStruct,
     Lit, LitInt, Meta,
 };
 
-use crate::{errors::ParseError, parse_utils::RticAttr, DEFAULT_TASK_PRIORITY};
+use crate::{
+    errors::ParseError, parse_utils::RticAttr, rtic_traits::HWT_TRAIT_TY, DEFAULT_TASK_PRIORITY,
+};
 
 #[derive(Debug)]
 pub struct InitTask {
@@ -55,6 +57,8 @@ pub struct TaskArgs {
     // list of identifiers for shared resources
     pub shared_idents: Vec<Ident>,
     pub core: u32,
+    // tells whether a task is native to this compilation pass or if another compilation pass handles its trait implementation
+    pub task_trait: Ident,
 }
 
 impl TaskArgs {
@@ -65,10 +69,12 @@ impl TaskArgs {
                 priority: DEFAULT_TASK_PRIORITY.load(Ordering::Relaxed),
                 shared_idents: Default::default(),
                 core: 0,
+                task_trait: format_ident!("{HWT_TRAIT_TY}"),
             });
         };
 
         let mut interrupt_handler_name: Option<syn::Path> = None;
+        let mut task_trait: Option<Ident> = None;
         let mut priority: Option<LitInt> = None;
         let mut shared: Option<ExprArray> = None;
         let mut core: Option<LitInt> = None;
@@ -82,6 +88,8 @@ impl TaskArgs {
                 shared = Some(meta.value()?.parse()?);
             } else if meta.path.is_ident("core") {
                 core = Some(meta.value()?.parse()?);
+            } else if meta.path.is_ident("task_trait") {
+                task_trait = Some(meta.value()?.parse()?);
             } else {
                 // this is needed to advance the values iterator
                 let _: syn::Result<Expr> = meta.value()?.parse();
@@ -100,6 +108,7 @@ impl TaskArgs {
         let core = core
             .and_then(|core| core.base10_parse().ok())
             .unwrap_or_default();
+        let task_trait = task_trait.unwrap_or(format_ident!("{HWT_TRAIT_TY}"));
 
         let shared_idents = if let Some(shared) = shared {
             let mut elements = Vec::with_capacity(shared.elems.len());
@@ -117,6 +126,7 @@ impl TaskArgs {
             priority,
             shared_idents,
             core,
+            task_trait,
         })
     }
 }
@@ -131,7 +141,7 @@ pub type IdleTask = RticTask;
 pub struct RticTask {
     pub args: TaskArgs,
     pub task_struct: ItemStruct,
-    pub struct_impl: ItemImpl,
+    pub struct_impl: Option<ItemImpl>,
     pub user_initializable: bool, // whether user should manually initialize this task during init
 }
 

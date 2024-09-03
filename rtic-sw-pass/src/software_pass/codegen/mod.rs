@@ -7,7 +7,8 @@ use crate::SwPassBackend;
 use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote};
 use rtic_core::multibin;
-use syn::{parse_quote, ItemFn, ItemMod, LitInt, Meta, Path};
+use rtic_core::parse_utils::RticAttr;
+use syn::{parse_quote, ItemFn, ItemMod, LitInt, Path};
 
 pub struct CodeGen<'a> {
     app: App,
@@ -100,18 +101,28 @@ impl<'a> CodeGen<'a> {
                 .chain(sub_app.mc_sw_tasks.iter_mut());
             // Re-generate the software tasks definitions and generate the spawn() api for each task
             let sw_tasks = tasks_iter.map(|task| {
-                // rename the "sw_task" attribute to "task" so that the standard pass recognizes this as a task
-                for attr in task.task_struct.attrs.iter_mut() {
-                    let path = match &mut attr.meta {
-                        Meta::Path(path) => path,
-                        Meta::List(meta) => &mut meta.path,
-                        Meta::NameValue(meta) => &mut meta.path,
-                    };
-                    if path.is_ident("sw_task") {
-                        path.segments[0].ident = format_ident!("task");
-                        break;
-                    }
-                }
+                
+                // We will rename the "sw_task" attribute to "task" so that the standard pass recognizes this as a task
+                // also, we will add the `task_trait = RticSwTask` argument.
+
+                // first find the index of the sw_task attribute
+                let attr_idx = task
+                    .task_struct
+                    .attrs
+                    .iter()
+                    .position(|attr| attr.path().is_ident("sw_task"))
+                    .expect("A sw task must have a sw_task attribute");
+                
+
+                // Then remove the old attribute as we will reconstruct it
+                let attr = task.task_struct.attrs.remove(attr_idx); 
+                
+                // Now we parse and reconstruct the task attribute
+                let mut reconstructed_task_attr = RticAttr::parse_from_attr(&attr).unwrap(); // FIXME: propagate error
+                let _ = reconstructed_task_attr.name.insert(format_ident!("task"));
+                reconstructed_task_attr
+                    .elements
+                    .insert("task_trait".into(), syn::parse_str(SWT_TRAIT_TY).unwrap());
 
                 let task_struct = &task.task_struct;
                 let task_impl = &task.task_impl;
@@ -123,6 +134,7 @@ impl<'a> CodeGen<'a> {
                 let spawn_impl = task.generate_spawn_api(dispatcher, pac);
 
                 quote! {
+                    #reconstructed_task_attr
                     #task_struct
                     #task_impl
                     #spawn_impl

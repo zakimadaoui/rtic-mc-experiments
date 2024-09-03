@@ -6,7 +6,9 @@ use crate::analysis::Analysis;
 use crate::multibin::multibin_cfg_core;
 use crate::parser::ast::{RticTask, SharedResources};
 use crate::parser::{ast::IdleTask, App};
-use crate::rtic_functions::{get_interrupt_free_fn, INTERRUPT_FREE_FN};
+use crate::rtic_functions::{
+    generate_task_traits_check_functions, get_interrupt_free_fn, INTERRUPT_FREE_FN,
+};
 use crate::rtic_traits::get_rtic_traits_mod;
 use crate::CorePassBackend;
 
@@ -59,6 +61,9 @@ impl<'a> CodeGen<'a> {
         // sub_apps
         let sub_apps = self.generate_sub_apps();
 
+        // task trait checks
+        let task_trait_check_functions = generate_task_traits_check_functions(self.analysis);
+
         quote! {
             pub mod #app_mod {
                 /// Include peripheral crate(s) that defines the vector table
@@ -70,7 +75,6 @@ impl<'a> CodeGen<'a> {
                 /// ================================== user includes ====================================
                 #(#user_includes)*
                 /// ==================================== rtic traits ====================================
-                pub use rtic_traits::*;
                 #rtic_traits_mod
                 /// ================================== rtic functions ===================================
                 /// critical section function
@@ -80,6 +84,9 @@ impl<'a> CodeGen<'a> {
 
                 // sub applications
                 #sub_apps
+
+                /// Utility functions used to enforce implementing appropriate task traits
+                #task_trait_check_functions
 
             }
         }

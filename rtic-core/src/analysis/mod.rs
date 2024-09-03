@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use proc_macro2::Span;
 use syn::spanned::Spanned;
 use syn::Ident;
@@ -8,11 +10,13 @@ use crate::App;
 use heck::ToSnakeCase;
 pub struct Analysis {
     pub sub_analysis: Vec<SubAnalysis>,
+    pub task_traits: HashSet<syn::Ident>,
 }
 
 impl Analysis {
     /// - updates resource ceilings
     /// - collects and structure key information about the user application to be used during code generation
+    /// - collect the task traits
     pub fn run(parsed_app: &mut App) -> syn::Result<Self> {
         // update resource ceilings
         for app in parsed_app.sub_apps.iter_mut() {
@@ -25,7 +29,21 @@ impl Analysis {
             .iter()
             .map(SubAnalysis::run)
             .collect::<syn::Result<_>>()?;
-        Ok(Self { sub_analysis })
+
+        let mut task_traits = HashSet::new();
+        for subapp in parsed_app.sub_apps.iter() {
+            for task in subapp.tasks.iter() {
+                task_traits.insert(task.args.task_trait.clone());
+            }
+            if let Some(idle) = &subapp.idle {
+                task_traits.insert(idle.args.task_trait.clone());
+            }
+        }
+
+        Ok(Self {
+            sub_analysis,
+            task_traits,
+        })
     }
 }
 

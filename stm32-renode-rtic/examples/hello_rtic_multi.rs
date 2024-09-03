@@ -36,7 +36,7 @@ pub mod my_app {
     }
 
     #[init(core = 0)]
-    fn system_init() -> SharedResources1 {
+    fn system_init() -> (SharedResources1, TaskInits) {
         // Get access to the device specific peripherals from the peripheral access crate
         let pac = unsafe { pac::Peripherals::steal() };
 
@@ -72,7 +72,7 @@ pub mod my_app {
         // Split the serial struct into a receiving and a transmitting part
         let (tx, _rx) = serial.split();
 
-        SharedResources1 { tx }
+        (SharedResources1 { tx }, TaskInits { my_task: MyTask {} })
     }
 
     #[init(core = 1)]
@@ -116,7 +116,7 @@ pub mod my_app {
     }
 
     #[task(binds = EXTI0 , priority = 3, shared = [tx])]
-    struct MyTask {/* local resources */}
+    pub struct MyTask {/* local resources */}
     impl RticTask for MyTask {
         fn init() -> Self {
             Self {}

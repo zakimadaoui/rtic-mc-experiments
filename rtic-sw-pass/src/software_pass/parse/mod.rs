@@ -2,7 +2,6 @@ use crate::parse::ast::{AppParameters, SoftwareTask, TaskParams};
 use proc_macro2::{Ident, TokenStream};
 use rtic_core::parse_utils::RticAttr;
 use std::collections::HashMap;
-use syn::spanned::Spanned;
 use syn::{Item, ItemImpl, ItemMod, ItemStruct, Type, Visibility};
 
 pub mod ast;
@@ -62,15 +61,7 @@ impl App {
         let mut sw_tasks = HashMap::with_capacity(cores as usize);
         let mut mc_sw_tasks = HashMap::with_capacity(cores as usize);
         for (task_struct, attr_idx) in sw_task_structs {
-            let task_impl = sw_task_impls
-                .remove(&task_struct.ident)
-                .ok_or(syn::Error::new(
-                    task_struct.span(),
-                    format!(
-                        "The software task {} doesn't implement {SWT_TRAIT_TY}",
-                        task_struct.ident
-                    ),
-                ))?;
+            let task_impl = sw_task_impls.remove(&task_struct.ident);
 
             let attrs = RticAttr::parse_from_attr(&task_struct.attrs[attr_idx])?;
             let params = TaskParams::from_attr(&attrs);

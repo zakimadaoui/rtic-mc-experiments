@@ -47,7 +47,7 @@ impl SharedResources {
             quote! {
                 // Resource proxy for `#element_name`
                 #cfg_core
-                struct #proxy_name {
+                pub struct #proxy_name {
                     #[doc(hidden)]
                     task_priority: u16,
                 }
@@ -110,7 +110,7 @@ impl SharedResources {
 
             // internal struct for `#task_ty` resource proxies
             #cfg_core
-            struct #task_shared_resources_struct {
+            pub struct #task_shared_resources_struct {
                 #(pub #field_and_proxytype ,)*
             }
 

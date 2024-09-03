@@ -1,7 +1,13 @@
-use quote::format_ident;
+use heck::ToSnakeCase;
+use proc_macro2::TokenStream;
+use quote::{format_ident, quote};
 use syn::{parse_quote, ImplItemFn, ItemFn};
 
-use crate::{parser::ast::SharedElement, AppArgs, CorePassBackend, SubApp};
+use crate::{
+    multibin,
+    parser::ast::{RticTask, SharedElement},
+    Analysis, AppArgs, CorePassBackend, SubApp,
+};
 
 pub const INTERRUPT_FREE_FN: &str = "__rtic_interrupt_free";
 
@@ -43,4 +49,40 @@ pub(crate) fn get_resource_proxy_lock_fn(
     };
     implementor.generate_resource_proxy_lock_impl(app_params, app_info, lock_fn)
     // TODO: we should validate if the implementor has kept the correct function signature by comparing it to the initial signature
+}
+
+pub(crate) fn task_trait_check_fn_name(trait_ident: &syn::Ident) -> syn::Ident {
+    let trait_lower = trait_ident.to_string().to_snake_case();
+    format_ident!("implements_{trait_lower}")
+}
+pub(crate) fn trait_check_call_for(task: &RticTask) -> TokenStream {
+    let task_trait = &task.args.task_trait;
+    let task_ty = &task.task_struct.ident;
+    let check_fn_name = task_trait_check_fn_name(task_trait);
+    let core = task.args.core;
+    let cfg_core = multibin::multibin_cfg_core(core);
+
+    quote! {
+        #cfg_core
+        const _: fn() = || {
+            __rtic_trait_checks::#check_fn_name::<#task_ty>();
+        };
+    }
+}
+
+fn generate_trait_check_fn(task_trait: &syn::Ident) -> TokenStream {
+    let check_fn_name = task_trait_check_fn_name(task_trait);
+    quote! {
+        pub fn #check_fn_name<T: #task_trait>(){}
+    }
+}
+
+pub(crate) fn generate_task_traits_check_functions(analysis: &Analysis) -> TokenStream {
+    let function_definitions = analysis.task_traits.iter().map(generate_trait_check_fn);
+    quote! {
+        mod __rtic_trait_checks {
+            use super::*;
+            #(#function_definitions)*
+        }
+    }
 }
