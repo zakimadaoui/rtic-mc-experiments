@@ -217,6 +217,4 @@ pub trait CorePassBackend {
 
     /// Implementation must return the default task priority to be used in idle task and tasks when priority argument value is not provided by the user.
     fn default_task_priority(&self) -> u16;
-
-    //FIXME: need to add a trait method that returns the distribution crate name to use instead of rtic::path::to::something...
 }
