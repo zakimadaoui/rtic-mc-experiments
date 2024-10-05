@@ -10,13 +10,13 @@ use rtic_core::RticPass;
 use syn::ItemMod;
 
 pub struct SoftwarePass {
-    implementation: Box<dyn SwPassBackend>,
+    backend: Box<dyn SwPassBackend>,
 }
 
 impl SoftwarePass {
-    pub fn new<T: SwPassBackend + 'static>(implementation: T) -> Self {
+    pub fn new<T: SwPassBackend + 'static>(backend: T) -> Self {
         Self {
-            implementation: Box::new(implementation),
+            backend: Box::new(backend),
         }
     }
 }
@@ -25,7 +25,7 @@ impl RticPass for SoftwarePass {
     fn run_pass(&self, args: TokenStream, app_mod: ItemMod) -> syn::Result<(TokenStream, ItemMod)> {
         let parsed = App::parse(&args, app_mod)?;
         let analysis = Analysis::run(&parsed)?;
-        let code = CodeGen::new(parsed, analysis, self.implementation.as_ref()).run();
+        let code = CodeGen::new(parsed, analysis, self.backend.as_ref()).run();
         Ok((args, code))
     }
 
@@ -48,4 +48,10 @@ pub trait SwPassBackend {
     /// tasks assigned to run on a specific core, but are "spawned by" another core)
     /// You can use [eprintln()] to see the `empty_body_fn` function signature
     fn generate_cross_pend_fn(&self, empty_body_fn: syn::ItemFn) -> Option<syn::ItemFn>;
+
+    /// Use this method to provide a custom path to the Interrupt type. This type must list all the interrupt names usable as dispatchers
+    /// If this method is not implemented, pac[core]::interrupt::Interrupt type will be used by default
+    fn custom_interrupt_path(&self, _core: u32) -> Option<syn::Path> {
+        None
+    }
 }

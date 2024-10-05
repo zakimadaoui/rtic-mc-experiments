@@ -4,6 +4,10 @@
 /// Distribution crate must re-export the `export` module from all the used compilation passes
 pub use rtic_sw_pass::export::*;
 
+/// Exports required by core-pass
+pub use cortex_m::interrupt::InterruptNumber as AbstractInterrupt; // a trait that abstracts an interrupt type
+
+/// re-exports needed from the code generation in internal stm32-rtic-macro crate
 use crate::mailbox;
 use cortex_m::register::{basepri, basepri_max};
 pub use cortex_m::{
@@ -13,9 +17,9 @@ pub use cortex_m::{
     peripheral::{scb::SystemHandler, DWT, NVIC, SCB, SYST},
     Peripherals,
 };
-
 pub use mailbox::cross_core;
 pub use microamp;
+
 
 #[inline]
 #[must_use]

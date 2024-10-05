@@ -367,7 +367,7 @@ dependencies = [
 
 [[package]]
 name = "rtic"
-version = "0.1.0"
+version = "0.1.0-renode-mc"
 dependencies = [
  "cortex-m",
  "cortex-m-rt",

@@ -4,11 +4,22 @@
 /// Distribution crate must re-export the `export` module from all the used compilation passes
 pub use rtic_sw_pass::export::*;
 
+/// Exports required by core-pass
+pub use hippomenes_core::Interrupt as AbstractInterrupt; // a trait that abstracts an interrupt type
+
+/// re-exports needed from the code generation in internal rtic-macro crate
 // use core::cell::Cell;
 use hippomenes_core::mintthresh;
-pub use hippomenes_core::Interrupt;
 
-pub use hippomenes_core::Peripherals;
+pub mod interrupts {
+    pub use hippomenes_core::Interrupt0;
+    pub use hippomenes_core::Interrupt1;
+    pub use hippomenes_core::Interrupt2;
+    pub use hippomenes_core::Interrupt3;
+
+}
+pub use hippomenes_core::Interrupt;
+pub use hippomenes_core::{Peripherals, OutputPin};
 pub use riscv::interrupt::machine::disable as interrupt_disable;
 pub use riscv::interrupt::machine::enable as interrupt_enable;
 

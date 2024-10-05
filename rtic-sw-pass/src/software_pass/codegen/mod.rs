@@ -13,15 +13,15 @@ use syn::{parse_quote, ItemFn, ItemMod, LitInt, Path};
 pub struct CodeGen<'a> {
     app: App,
     analysis: Analysis,
-    implementation: &'a dyn SwPassBackend,
+    backend: &'a dyn SwPassBackend,
 }
 
 impl<'a> CodeGen<'a> {
-    pub fn new(app: App, analysis: Analysis, implementation: &'a dyn SwPassBackend) -> CodeGen<'a> {
+    pub fn new(app: App, analysis: Analysis, backend: &'a dyn SwPassBackend) -> CodeGen<'a> {
         Self {
             app,
             analysis,
-            implementation,
+            backend,
         }
     }
 
@@ -65,14 +65,13 @@ impl<'a> CodeGen<'a> {
         let pend_fn_empty = parse_quote! {
             #[doc(hidden)]
             #[inline]
-            pub fn #pend_fn_ident(irq_nbr : u16) { //TODO: change this to standard embedded rust type Interrupt...
+            pub fn #pend_fn_ident<I: rtic::export::AbstractInterrupt>(irq_nbr : I) {
                 // To be implemented by distributor
                 // example:
-                // let irq : pac::Interrupt = unsafe { core::mem::transmute(irq_nbr) }
                 // NVIC::pend( irq );
             }
         };
-        self.implementation.generate_local_pend_fn(pend_fn_empty)
+        self.backend.generate_local_pend_fn(pend_fn_empty)
     }
 
     fn get_cross_pend_fn(&self) -> Option<ItemFn> {
@@ -80,12 +79,12 @@ impl<'a> CodeGen<'a> {
         let pend_fn_empty = parse_quote! {
             #[doc(hidden)]
             #[inline]
-            pub fn #pend_fn_ident(irq_nbr : u16, core: u32) { // TODO: this function should return a result, as pending can fail in multicore !
+            pub fn #pend_fn_ident<I: rtic::export::AbstractInterrupt>(irq_nbr : I, core: u32) { // TODO: this function should return a result, as pending can fail in multicore !
                 // To be implemented by distributor
                 // How do you pend an interrupt on the other core ?
             }
         };
-        self.implementation.generate_cross_pend_fn(pend_fn_empty)
+        self.backend.generate_cross_pend_fn(pend_fn_empty)
     }
 
     fn generate_subapps(&mut self) -> TokenStream {
@@ -131,7 +130,7 @@ impl<'a> CodeGen<'a> {
                     .dispatcher_priority_map
                     .get(&task.params.priority)
                     .unwrap(); // safe to unwrap
-                let spawn_impl = task.generate_spawn_api(dispatcher, pac);
+                let spawn_impl = task.generate_spawn_api(dispatcher, pac, self.backend);
 
                 quote! {
                     #reconstructed_task_attr
@@ -246,6 +245,7 @@ impl SoftwareTask {
         &self,
         dispatcher_irq_name: &Path,
         peripheral_crate: &Path,
+        backend: &dyn SwPassBackend,
     ) -> TokenStream {
         let cfg_core = multibin::multibin_cfg_core(self.params.core);
         let multibin_shared = multibin::multibin_shared();
@@ -258,6 +258,7 @@ impl SoftwareTask {
         let ready_queue_name = utils::priority_queue_ident(&prio_ty);
 
         let critical_section_fn = format_ident!("{}", rtic_core::rtic_functions::INTERRUPT_FREE_FN);
+        let interrupt_ty = backend.custom_interrupt_path(self.params.core).unwrap_or(parse_quote!(#peripheral_crate::Interrupt));
 
         // spawn for core-local tasks
         if self.params.core == self.params.spawn_by {
@@ -278,7 +279,7 @@ impl SoftwareTask {
                             // enqueue task to ready queue
                             unsafe {ready_producer.enqueue_unchecked(#prio_ty::#task_name)};
                             // pend dispatcher
-                            #pend_fn(#peripheral_crate::Interrupt::#dispatcher_irq_name as u16);
+                            #pend_fn(#interrupt_ty::#dispatcher_irq_name);
                             Ok(())
                         })
                     }
@@ -305,7 +306,7 @@ impl SoftwareTask {
                             // enqueue task to ready queue
                             unsafe {ready_producer.enqueue_unchecked(#prio_ty::#task_name)};
                             // pend dispatcher
-                            #pend_fn(#peripheral_crate::Interrupt::#dispatcher_irq_name as u16, #core);
+                            #pend_fn(#interrupt_ty::#dispatcher_irq_name, #core);
                             Ok(())
                         })
                     }

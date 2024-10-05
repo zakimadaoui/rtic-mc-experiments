@@ -1,11 +1,15 @@
 // Note: most of the code here is taken from rtic repo
 #![allow(clippy::inline_always)]
 
-pub use rp2040_hal::multicore::{Multicore, Stack};
-pub use rp2040_hal::sio::Sio;
 /// Distribution crate must re-export the `export` module from all the used compilation passes
 pub use rtic_sw_pass::export::*;
 
+/// Exports required by core-pass
+pub use cortex_m::interrupt::InterruptNumber as AbstractInterrupt; // a trait that abstracts an interrupt type
+
+/// re-exports needed from the code generation in internal rp2040-rtic-macro crate
+pub use rp2040_hal::multicore::{Multicore, Stack};
+pub use rp2040_hal::sio::Sio;
 pub use cortex_m::{
     asm::nop,
     asm::wfi,

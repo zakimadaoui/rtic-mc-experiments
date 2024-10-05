@@ -36,7 +36,7 @@ pub mod my_app {
     }
 
     #[init(core = 0)]
-    fn system_init() -> (SharedResources1, TaskInits) {
+    fn system_init() -> SharedResources1 {
         // Get access to the device specific peripherals from the peripheral access crate
         let pac = unsafe { pac::Peripherals::steal() };
 
@@ -72,7 +72,7 @@ pub mod my_app {
         // Split the serial struct into a receiving and a transmitting part
         let (tx, _rx) = serial.split();
 
-        (SharedResources1 { tx }, TaskInits { my_task: MyTask {} })
+        SharedResources1 { tx }
     }
 
     #[init(core = 1)]

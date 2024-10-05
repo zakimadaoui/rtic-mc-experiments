@@ -194,12 +194,12 @@ pub trait CorePassBackend {
     /// Example implementation can be
     /// ```rust
     /// fn multibin_shared_macro_path() -> syn::Path {
-    ///     syn::parse_quote! { rtic::exports::microamp::shared }
+    ///     syn::parse_quote! { rtic::export::microamp::shared }
     /// }
     ///
     /// This will be used by RTIC internally to generate the statement:
     /// ```rust
-    /// use rtic::exports::microamp::shared as multibin_shared;
+    /// use rtic::export::microamp::shared as multibin_shared;
     ///
     /// where multibin_shared is the proc macro attribute used to indicate shared data across cores
     /// ```

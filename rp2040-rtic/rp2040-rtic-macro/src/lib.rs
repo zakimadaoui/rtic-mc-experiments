@@ -204,22 +204,27 @@ struct SwPassBackendImpl;
 impl SwPassBackend for SwPassBackendImpl {
     /// Provide the implementation/body of the core local interrupt pending function.
     fn generate_local_pend_fn(&self, mut empty_body_fn: ItemFn) -> ItemFn {
+        // #[doc(hidden)]
+        // #[inline]
+        // pub fn __rtic_local_irq_pend<I: rtic::export::AbstractInterrupt>(irq_nbr : I) {
         let body = parse_quote!({
-            // taken from cortex-m implementation
-            unsafe {
-                (*rtic::export::NVIC::PTR).ispr[usize::from(irq_nbr / 32)]
-                    .write(1 << (irq_nbr % 32))
-            }
+            rtic::export::NVIC::pend(irq_nbr);
         });
+        // }
         empty_body_fn.block = Box::new(body);
         empty_body_fn
     }
 
     /// Provide the implementation/body of the cross-core interrupt pending function.
     fn generate_cross_pend_fn(&self, mut empty_body_fn: ItemFn) -> Option<ItemFn> {
+        // #[doc(hidden)]
+        // #[inline]
+        // pub fn __rtic_cross_irq_pend<I: rtic::export::AbstractInterrupt>(irq_nbr : I, core: u32) {
         let body = parse_quote!({
-            let _ = rtic::export::cross_core::pend_irq(irq_nbr);
+            use rtic::export::AbstractInterrupt;
+            let _ = rtic::export::cross_core::pend_irq(irq_nbr.number());
         });
+        // }
         empty_body_fn.block = Box::new(body);
         Some(empty_body_fn)
     }
