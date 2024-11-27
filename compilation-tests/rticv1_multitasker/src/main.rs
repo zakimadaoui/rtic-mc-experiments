@@ -67,7 +67,7 @@ mod app {
     }
 
     #[init]
-    fn init(_cx: init::Context) -> (Shared, Local) {
+    fn init(_cx: init::Context) -> (Shared, Local, init::Monotonics) {
         let mut device = pac::Peripherals::take().unwrap();
 
         // Initialization of the system clock.
@@ -141,6 +141,7 @@ mod app {
                     command: Command::Unknown,
                 },
             },
+            init::Monotonics()
         )
     }
 
@@ -279,7 +280,7 @@ mod app {
         priority = 3,
         shared = [uart_tx],
     )]
-    async fn encryptor(mut cx: encryptor::Context, mut data: String<30>) {
+    fn encryptor(mut cx: encryptor::Context, mut data: String<30>) {
         xor_cipher(unsafe { data.as_bytes_mut() });
         cx.shared.uart_tx.lock(|uart| {
             uart.write_full_blocking(b"Encryption done: ");
@@ -304,7 +305,7 @@ mod app {
         priority = 3,
         shared = [uart_tx],
     )]
-    async fn decryptor(mut cx: decryptor::Context, data: String<30>) {
+    fn decryptor(mut cx: decryptor::Context, data: String<30>) {
         let mut out = [0; 100];
         let size = BASE64_STANDARD
             .decode_slice(data.as_bytes(), &mut out)
@@ -321,7 +322,7 @@ mod app {
         priority = 3,
         shared = [uart_tx],
     )]
-    async fn hasher(mut cx: hasher::Context, data: String<30>) {
+    fn hasher(mut cx: hasher::Context, data: String<30>) {
         let hash = xor_hash(&data);
         let mut to_str = itoa::Buffer::new();
         let hash = to_str.format(hash);

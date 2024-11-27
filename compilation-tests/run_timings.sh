@@ -6,10 +6,10 @@ iterations=$1
 flags=$2
 : ${iterations:=1} # by default one iteration
 
-# rm -rf timings
-# mkdir timings
-applications=("mmrtic_led_toggler" "rticv2_led_toggler" "mmrtic_multitasker" "rticv2_multitasker")
-bins=("led_toggler_mmrtic" "led_toggler_rticv2" "multitasker_mmrtic" "multitasker_rticv2")
+rm -rf timings
+mkdir timings
+applications=("mmrtic_led_toggler" "rticv1_led_toggler" "rticv2_led_toggler" "mmrtic_multitasker" "rticv1_multitasker" "rticv2_multitasker")
+bins=("led_toggler_mmrtic"  "led_toggler_rticv1" "led_toggler_rticv2" "multitasker_mmrtic" "multitasker_rticv1" "multitasker_rticv2" )
 
 for (( i=1; i<=$iterations; i++ ))
 do
@@ -21,6 +21,7 @@ do
       cd -
       cp $app/target/cargo-timings/cargo-timing.html timings/${app}_timing_${i}.html
    done
+   sleep 10
 done
 
 for app in ${applications[@]}; do

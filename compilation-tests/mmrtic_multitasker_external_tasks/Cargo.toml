@@ -17,7 +17,7 @@ cortex-m-rt = "0.7.3"
 embedded-hal = "0.2.7"
 fugit = "0.3.7"
 heapless = "0.8.0"
-# panic-halt = "0.2.0"
+panic-halt = "0.2.0"
 rp-pico = { version = "0.8.0", features = ["boot2"] }
 rp2040-boot2 = "0.3.0"
 rp2040-hal = "0.9.1"
@@ -27,9 +27,5 @@ rp2040-hal = "0.9.1"
 # futures = "0.3.29"
 rtic = { path = "../../rp2040-rtic" , features = ["swtasks"]}
 
-
-defmt = "0.3"
-defmt-rtt = "0.4"
-panic-probe = { version = "0.3", features = ["print-defmt"] }
 itoa = "1.0.11"
 base64 = {version = "0.22.1", default-features = false}

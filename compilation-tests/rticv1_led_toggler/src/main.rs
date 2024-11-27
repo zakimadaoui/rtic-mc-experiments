@@ -5,12 +5,10 @@
 // be linked)
 use panic_halt as _;
 
-#[rtic::app(device = rp_pico::hal::pac, peripherals = false, dispatchers = [SW0_IRQ])]
+#[rtic::app(device = rp_pico::hal::pac, peripherals = false)]
 mod app {
-    use base64::prelude::BASE64_STANDARD;
-    use base64::Engine;
+
     use core::sync::atomic::{AtomicU32, Ordering};
-    use cortex_m::asm;
     use fugit::{MicrosDurationU32, RateExtU32};
     use heapless::String;
     use rp2040_hal::gpio::bank0::{Gpio0, Gpio1, Gpio25};
@@ -20,10 +18,8 @@ mod app {
         DataBits, Reader as UartReader, StopBits, UartConfig, UartPeripheral, Writer,
     };
     use rp2040_hal::Clock;
-
     // Alias for our PAC crate
     use rp2040_hal::pac::{self};
-
     // Some traits we need
     use embedded_hal::digital::v2::ToggleableOutputPin;
 
@@ -50,13 +46,11 @@ mod app {
     /// if your board has a different frequency
     const XTAL_FREQ_HZ: u32 = 12_000_000u32;
 
-    /// Random hardcode encryption key
-    const ENC_KEY: &[u8; 13] = b"fd@aG692-d70s";
-
     #[shared]
     struct Shared {
         uart_tx: UartTx,
         alarm: Alarm0,
+        target_blinks: u32,
     }
 
     #[local]
@@ -67,7 +61,7 @@ mod app {
     }
 
     #[init]
-    fn init(_cx: init::Context) -> (Shared, Local) {
+    fn init(_cx: init::Context) -> (Shared, Local, init::Monotonics) {
         let mut device = pac::Peripherals::take().unwrap();
 
         // Initialization of the system clock.
@@ -119,18 +113,17 @@ mod app {
         alarm0.enable_interrupt();
         unsafe { pac::NVIC::unmask(pac::Interrupt::TIMER_IRQ_0) };
 
-        uart_tx.write_full_blocking(b"Welcome to MultiTasker Example\r\n");
+        uart_tx.write_full_blocking(b"Welcome to LedCommander Example\r\n");
         uart_tx.write_full_blocking(
             b"Enter the command and its arguments: <cmd> <arg1 arg2 ... arg_n>. Possible commands are:\r\n",
         );
         uart_tx.write_full_blocking(b"b <count> <duration> # toggles an led <count> times with <duration> between each toggle.\r\n");
-        uart_tx.write_full_blocking(b"e <data>             # encrypt data.\r\n");
-        uart_tx.write_full_blocking(b"h <data>             # hash data.\r\n");
 
         (
             Shared {
                 uart_tx,
                 alarm: alarm0,
+                target_blinks: 0,
             },
             Local {
                 led: led_pin,
@@ -141,14 +134,12 @@ mod app {
                     command: Command::Unknown,
                 },
             },
+            init::Monotonics(),
         )
     }
 
     enum Command {
         Blink,
-        Encrypt,
-        Decrypt,
-        Hash,
         Unknown,
     }
 
@@ -179,9 +170,6 @@ mod app {
                 // read command
                 let cmd = match b {
                     b'b' => Command::Blink,
-                    b'e' => Command::Encrypt,
-                    b'd' => Command::Decrypt,
-                    b'h' => Command::Hash,
                     _ => Command::Unknown,
                 };
                 cx.local.uart_state.command = cmd;
@@ -210,24 +198,6 @@ mod app {
                             let _ = alarm.schedule(MicrosDurationU32::millis(duration));
                         });
                     }
-                    Command::Encrypt => {
-                        cx.shared
-                            .uart_tx
-                            .lock(|uart| uart.write_full_blocking(b"Starting encryptor ...\r\n"));
-                        let _ = encryptor::spawn(cx.local.uart_state.data.clone());
-                    }
-                    Command::Decrypt => {
-                        cx.shared
-                            .uart_tx
-                            .lock(|uart| uart.write_full_blocking(b"Starting decryptor ...\r\n"));
-                        let _ = decryptor::spawn(cx.local.uart_state.data.clone());
-                    }
-                    Command::Hash => {
-                        cx.shared
-                            .uart_tx
-                            .lock(|uart| uart.write_full_blocking(b"Starting hasher ...\r\n"));
-                        let _ = hasher::spawn(cx.local.uart_state.data.clone());
-                    }
                     Command::Unknown => cx
                         .shared
                         .uart_tx
@@ -237,9 +207,11 @@ mod app {
                 cx.local.uart_state.read_command = true;
                 cx.local.uart_state.data.clear();
                 cx.local.uart_state.command = Command::Unknown;
-            } else if *b != b' ' || !cx.local.uart_state.data.is_empty() {
-                // read command argument data
-                let _ = cx.local.uart_state.data.push(*b as char);
+            } else {
+                if *b != b' ' || !cx.local.uart_state.data.is_empty() {
+                    // read command argument data
+                    let _ = cx.local.uart_state.data.push(*b as char);
+                }
             }
         }
     }
@@ -248,7 +220,7 @@ mod app {
     #[task(
         binds = TIMER_IRQ_0,
         priority = 2,
-        shared = [uart_tx, alarm],
+        shared = [ uart_tx, alarm, target_blinks],
         local = [led]
     )]
     fn command_executor(mut cx: command_executor::Context) {
@@ -273,75 +245,5 @@ mod app {
             }
             alarm0.clear_interrupt();
         });
-    }
-
-    #[task(
-        priority = 3,
-        shared = [uart_tx],
-    )]
-    async fn encryptor(mut cx: encryptor::Context, mut data: String<30>) {
-        xor_cipher(unsafe { data.as_bytes_mut() });
-        cx.shared.uart_tx.lock(|uart| {
-            uart.write_full_blocking(b"Encryption done: ");
-            let mut out = [0; 100]; // 40 bytes are needed to represent 30 raw bytes in base64 format
-            let size = base64::engine::general_purpose::STANDARD
-                .encode_slice(data.as_bytes(), &mut out)
-                .unwrap_or_default();
-            uart.write_full_blocking(&out[..size]);
-            uart.write_full_blocking(b"\r\n");
-        });
-    }
-
-    fn xor_cipher(data: &mut [u8]) {
-        for (i, byte) in data.iter_mut().enumerate() {
-            let key_byte = ENC_KEY[i % ENC_KEY.len()]; // This wraps the key
-            *byte ^= key_byte;
-            asm::delay(1000); // simulate a more involved operation on each byte
-        }
-    }
-
-    #[task(
-        priority = 3,
-        shared = [uart_tx],
-    )]
-    async fn decryptor(mut cx: decryptor::Context, data: String<30>) {
-        let mut out = [0; 100];
-        let size = BASE64_STANDARD
-            .decode_slice(data.as_bytes(), &mut out)
-            .unwrap_or_default();
-        xor_cipher(&mut out);
-        cx.shared.uart_tx.lock(|uart| {
-            uart.write_full_blocking(b"Decryption done: ");
-            uart.write_full_blocking(&out[..size]);
-            uart.write_full_blocking(b"\r\n");
-        });
-    }
-
-    #[task(
-        priority = 3,
-        shared = [uart_tx],
-    )]
-    async fn hasher(mut cx: hasher::Context, data: String<30>) {
-        let hash = xor_hash(&data);
-        let mut to_str = itoa::Buffer::new();
-        let hash = to_str.format(hash);
-
-        cx.shared.uart_tx.lock(|uart| {
-            uart.write_full_blocking(b"Hashing done: ");
-            uart.write_full_blocking(hash.as_bytes());
-            uart.write_full_blocking(b"\r\n");
-        });
-    }
-
-    fn xor_hash(data: &String<30>) -> u32 {
-        let mut hash = 0u32;
-        // XOR each byte into the 32-bit hash
-        for (i, &byte) in data.as_bytes().iter().enumerate() {
-            // Shift the byte into different positions within the u32 to spread out the effect
-            let shift = (i % 4) * 8;
-            hash ^= (byte as u32) << shift;
-            asm::delay(1000); // simulate a more involved operation on each byte
-        }
-        hash
     }
 }

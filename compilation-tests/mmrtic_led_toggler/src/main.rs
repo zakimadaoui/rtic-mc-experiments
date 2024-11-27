@@ -3,12 +3,7 @@
 
 // Ensure we halt the program on panic (if we don't mention this crate it won't
 // be linked)
-// use panic_halt as _;
-
-#[allow(unused)]
-use defmt::*;
-use defmt_rtt as _;
-use panic_probe as _;
+use panic_halt as _;
 
 #[rtic::app(device = rp_pico::hal::pac, peripherals = false)]
 mod app {

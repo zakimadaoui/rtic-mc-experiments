@@ -1,19 +1,19 @@
 [package]
-name = "led_toggler_mmrtic"
+name = "multitasker_rticv1"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [[bin]]
-name = "led_toggler_mmrtic"
+name = "multitasker_rticv1"
 test = false
 bench = false
 
 [dependencies]
 cortex-m = "0.7.7"
 cortex-m-rt = "0.7.3"
-# cortex-m-rtic = "1.1.4"
+cortex-m-rtic = "1.1.4"
 embedded-hal = "0.2.7"
 fugit = "0.3.7"
 heapless = "0.8.0"
@@ -25,8 +25,8 @@ rp2040-hal = "0.9.1"
 
 # portable-atomic = { version = "1", features = ["critical-section"] }
 # futures = "0.3.29"
-rtic = { path = "../../rp2040-rtic" , features = ["swtasks"]}
+# rtic = { version = "2.1.1", features = ["thumbv6-backend"] }
 
 
 itoa = "1.0.11"
-base64 = {version = "0.22.1", default-features = false}
+base64 = { version = "0.22.1", default-features = false }
