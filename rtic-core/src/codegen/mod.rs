@@ -200,7 +200,7 @@ impl<'a> CodeGen<'a> {
                 #[doc = #doc]
                 #cfg_core
                 #[no_mangle]
-                pub fn #entry_name() -> ! {
+                fn #entry_name() -> ! {
                     // Disable interrupts during initialization
                     #interrupt_free(||{
                         // user init code
