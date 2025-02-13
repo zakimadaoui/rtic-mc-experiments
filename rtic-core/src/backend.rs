@@ -241,4 +241,26 @@ pub trait CorePassBackend {
     fn entry_attrs(&self) -> Option<TokenStream2> {
         None
     }
+
+    /// Attribute macros to add to tasks
+    ///
+    /// Used by some implementations to inject custom pre- and postambles to task handlers.
+    ///
+    /// # Examples
+    ///
+    /// `task_attrs` allows to add attribute macros to the main entry point, enabling the following
+    /// common use case:
+    ///
+    /// ```rust
+    /// #[riscv_rt::interrupt]
+    /// fn Uart() {}
+    /// ```
+    ///
+    /// # Developer notes
+    ///
+    /// Return type `Option<proc_macro2::TokenStream2>` is too permissive. We should be returning
+    /// just `syn::Attribute` but I couldn't figure out how to effectively generate that.
+    fn task_attrs(&self) -> Option<TokenStream2> {
+        None
+    }
 }

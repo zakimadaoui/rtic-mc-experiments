@@ -90,7 +90,7 @@ impl RticTask {
 /// if "multibin" feature is enabled we need to process the task impl further.
 /// Only the core that runs the task should contain the task trait implementation (init() and exec()).
 /// However, because all the cores have a copy of the task struct (which must implement the task trait .. chicken-egg problem),
-/// we solve this problem by reducing as much code as possible for the other cores by emptying their implemented functions.  
+/// we solve this problem by reducing as much code as possible for the other cores by emptying their implemented functions.
 #[cfg(feature = "multibin")]
 fn process_task_impl(task_impl: &syn::ItemImpl, core: u32) -> TokenStream2 {
     let cfg_core =
@@ -125,6 +125,7 @@ impl HardwareTask {
         implementation: &dyn CorePassBackend,
     ) -> Option<TokenStream2> {
         let cfg_core = multibin::multibin_cfg_core(self.args.core);
+        let task_attrs = implementation.task_attrs().unwrap_or(quote!());
         let task_static_handle = &self.name_uppercase();
         let task_irq_handler = &self.args.interrupt_handler_name.clone()?;
 
@@ -140,6 +141,7 @@ impl HardwareTask {
             #cfg_core
             #[allow(non_snake_case)]
             #[no_mangle]
+            #task_attrs
             fn #task_irq_handler() {
                 #task_dispatch_call
             }
