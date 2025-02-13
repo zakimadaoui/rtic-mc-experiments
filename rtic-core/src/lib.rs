@@ -135,7 +135,7 @@ impl RticMacroBuilder {
         };
 
         // Before starting code generation, ask distribution for further checks
-        if let Err(e) = self.core.pre_codgen_validation(&parsed_app, &analysis) {
+        if let Err(e) = self.core.pre_codegen_validation(&parsed_app, &analysis) {
             return e.to_compile_error().into();
         }
 

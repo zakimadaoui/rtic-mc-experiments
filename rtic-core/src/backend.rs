@@ -145,7 +145,7 @@ pub trait CorePassBackend {
     /// }
     /// ```
     ///
-    fn set_entry_name(&self, core: u32) -> Ident;
+    fn entry_name(&self, core: u32) -> Ident;
 
     /// # Customizing the default behavior of idle task
     /// When the user doesn't define an idle task, RTIC automatically defines one with a default implementation.
@@ -213,7 +213,7 @@ pub trait CorePassBackend {
     /// In certain cases, some checks/validation related to implementation/hardware specific details need to be made before allowing the user code to be expanded.
     /// An example, could be that the user has attempted to use an Exception line as for a dispatcher, but the distribution needs to forbid that.
     /// Implementing this trait method, gives the ability to enforcing such checks.
-    fn pre_codgen_validation(&self, app: &App, analysis: &Analysis) -> syn::Result<()>;
+    fn pre_codegen_validation(&self, app: &App, analysis: &Analysis) -> syn::Result<()>;
 
     /// Implementation must return the default task priority to be used in idle task and tasks when priority argument value is not provided by the user.
     fn default_task_priority(&self) -> u16;
