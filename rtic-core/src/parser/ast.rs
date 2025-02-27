@@ -52,7 +52,8 @@ impl InitTaskArgs {
 
 #[derive(Debug)]
 pub struct TaskArgs {
-    pub interrupt_handler_name: Option<syn::Ident>,
+    /// Interrupt handler name
+    pub binds: Option<syn::Ident>,
     pub priority: u16,
     // list of identifiers for shared resources
     pub shared_idents: Vec<Ident>,
@@ -65,7 +66,7 @@ impl TaskArgs {
     pub fn parse(args: Meta) -> syn::Result<Self> {
         let Meta::List(args) = args else {
             return Ok(TaskArgs {
-                interrupt_handler_name: None,
+                binds: None,
                 priority: DEFAULT_TASK_PRIORITY.load(Ordering::Relaxed),
                 shared_idents: Default::default(),
                 core: 0,
@@ -73,7 +74,7 @@ impl TaskArgs {
             });
         };
 
-        let mut interrupt_handler_name: Option<syn::Path> = None;
+        let mut binds: Option<syn::Path> = None;
         let mut task_trait: Option<Ident> = None;
         let mut priority: Option<LitInt> = None;
         let mut shared: Option<ExprArray> = None;
@@ -81,7 +82,7 @@ impl TaskArgs {
 
         syn::meta::parser(|meta| {
             if meta.path.is_ident("binds") {
-                interrupt_handler_name = Some(meta.value()?.parse()?);
+                binds = Some(meta.value()?.parse()?);
             } else if meta.path.is_ident("priority") {
                 priority = Some(meta.value()?.parse()?);
             } else if meta.path.is_ident("shared") {
@@ -108,8 +109,7 @@ impl TaskArgs {
             );
         })?;
 
-        let interrupt_handler_name = interrupt_handler_name
-            .map(|i| Ident::new(&i.to_token_stream().to_string(), Span::call_site()));
+        let binds = binds.map(|i| Ident::new(&i.to_token_stream().to_string(), Span::call_site()));
 
         let priority = priority
             .and_then(|p| p.base10_parse().ok())
@@ -132,7 +132,7 @@ impl TaskArgs {
         };
 
         Ok(Self {
-            interrupt_handler_name,
+            binds,
             priority,
             shared_idents,
             core,

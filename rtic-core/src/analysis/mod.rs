@@ -61,7 +61,7 @@ impl SubAnalysis {
         let used_interrupts = app
             .tasks
             .iter()
-            .filter_map(|t| Some((t.args.interrupt_handler_name.clone()?, t.args.priority)))
+            .filter_map(|t| Some((t.args.binds.clone()?, t.args.priority)))
             .collect();
 
         let user_initializable_tasks = app
