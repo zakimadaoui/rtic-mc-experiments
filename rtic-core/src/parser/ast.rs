@@ -120,16 +120,14 @@ impl TaskArgs {
             .unwrap_or_default();
         let task_trait = task_trait.unwrap_or(format_ident!("{HWT_TRAIT_TY}"));
 
-        let shared_res = if let Some(expr) = shared_res {
-            let mut elements = Vec::with_capacity(expr.elems.len());
-            for element in expr.elems {
-                let element = Ident::new(&element.to_token_stream().to_string(), Span::call_site());
-                elements.push(element);
-            }
-            elements
-        } else {
-            Vec::new()
-        };
+        let shared_res = shared_res
+            .map(|expr| {
+                expr.elems
+                    .into_iter()
+                    .map(|elem| Ident::new(&elem.to_token_stream().to_string(), Span::call_site()))
+                    .collect()
+            })
+            .unwrap_or_else(|| Vec::new());
 
         Ok(Self {
             binds,
