@@ -22,11 +22,16 @@ impl SoftwarePass {
 }
 
 impl RticPass for SoftwarePass {
-    fn run_pass(&self, args: TokenStream, app_mod: ItemMod) -> syn::Result<(TokenStream, ItemMod)> {
+    type PassArtifacts = ();
+    fn run_pass(
+        &self,
+        args: TokenStream,
+        app_mod: ItemMod,
+    ) -> syn::Result<(TokenStream, ItemMod, ())> {
         let parsed = App::parse(&args, app_mod)?;
         let analysis = Analysis::run(&parsed)?;
         let code = CodeGen::new(parsed, analysis, self.backend.as_ref()).run();
-        Ok((args, code))
+        Ok((args, code, ()))
     }
 
     fn pass_name(&self) -> &str {
