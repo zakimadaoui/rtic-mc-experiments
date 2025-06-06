@@ -7,9 +7,6 @@ pub use rtic_sw_pass::export::*;
 /// Exports required by core-pass
 pub use cortex_m::interrupt::InterruptNumber; // a trait that abstracts an interrupt type
 
-/// re-exports needed from the code generation in internal rp2040-rtic-macro crate
-pub use rp2040_hal::multicore::{Multicore, Stack};
-pub use rp2040_hal::sio::Sio;
 pub use cortex_m::{
     asm::nop,
     asm::wfi,
@@ -17,6 +14,9 @@ pub use cortex_m::{
     peripheral::{scb::SystemHandler, DWT, NVIC, SCB, SYST},
     Peripherals,
 };
+/// re-exports needed from the code generation in internal rp2040-rtic-macro crate
+pub use rp2040_hal::multicore::{Multicore, Stack};
+pub use rp2040_hal::sio::Sio;
 
 /// Mask is used to store interrupt masks on systems without a BASEPRI register (M0, M0+, M23).
 /// It needs to be large enough to cover all the relevant interrupts in use.
