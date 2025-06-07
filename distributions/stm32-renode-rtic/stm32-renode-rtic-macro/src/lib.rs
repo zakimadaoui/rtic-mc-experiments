@@ -15,13 +15,16 @@ const MIN_TASK_PRIORITY: u16 = 15; // cortex m3 has 16 programmable priority lev
 const MAX_TASK_PRIORITY: u16 = 0;
 #[proc_macro_attribute]
 pub fn app(args: TokenStream, input: TokenStream) -> TokenStream {
-    // use the standard software pass provided by rtic-sw-pass crate
-    let sw_pass = SoftwarePass::new(SwPassBackendImpl);
+    let run_app = || {
+        let mut builder = RticMacroBuilder::new(args, input);
+        let _artifacts = builder.run_intermediate_pass(AutoAssignPass)?; // run auto-assign first
 
-    let mut builder = RticMacroBuilder::new(RenodeRtic);
-    builder.bind_pre_core_pass(AutoAssignPass); // run auto-assign first
-    builder.bind_pre_core_pass(sw_pass); // run software pass second
-    builder.build_rtic_macro(args, input)
+        let sw_pass = SoftwarePass::new(SwPassBackendImpl); // use the standard software pass provided by rtic-sw-pass crate
+        let _artifacts = builder.run_intermediate_pass(sw_pass)?; // run software pass second
+
+        builder.run_core_pass(RenodeRtic)
+    };
+    run_app().unwrap_or_else(|e| e.into_compile_error().into())
 }
 
 // =========================================== Trait implementations ===================================================

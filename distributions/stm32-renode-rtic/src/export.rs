@@ -20,7 +20,6 @@ pub use cortex_m::{
 pub use mailbox::cross_core;
 pub use microamp;
 
-
 #[inline]
 #[must_use]
 pub const fn cortex_logical2hw(logical: u8, nvic_prio_bits: u8) -> u8 {

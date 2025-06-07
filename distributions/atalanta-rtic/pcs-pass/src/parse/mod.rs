@@ -23,15 +23,12 @@ impl App {
         let mut tasks = Vec::new();
 
         for item in app_mod_items {
-            match item {
-                Item::Struct(ref struct_) => {
-                    if let Some(task_attr_idx) = locate_attr_in_struct("task", &struct_) {
-                        tasks.push(RticTask::from_struct((struct_, task_attr_idx))?);
-                    } else if let Some(attr_idx) = locate_attr_in_struct("sw_task", &struct_) {
-                        tasks.push(RticTask::from_struct((struct_, attr_idx))?);
-                    }
+            if let Item::Struct(ref struct_) = item {
+                if let Some(task_attr_idx) = locate_attr_in_struct("task", struct_) {
+                    tasks.push(RticTask::from_struct((struct_, task_attr_idx))?);
+                } else if let Some(attr_idx) = locate_attr_in_struct("sw_task", struct_) {
+                    tasks.push(RticTask::from_struct((struct_, attr_idx))?);
                 }
-                _ => {}
             }
             code.push(item);
         }
