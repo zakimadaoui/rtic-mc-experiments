@@ -9,31 +9,32 @@ extern crate proc_macro;
 
 struct HippoRtic;
 
-#[cfg(feature = "deadline-pass")]
 use rtic_deadline_pass::{DeadlineToPriorityPass /* DeadlineToPriorityPassImpl */};
 
 use rtic_sw_pass::SoftwarePass;
 
 const MIN_TASK_PRIORITY: u16 = 0; // lowest hippo priority
-#[cfg(feature = "deadline-pass")]
 const MAX_TASK_PRIORITY: u16 = 3; // highest hippo priority
 
 #[proc_macro_attribute]
 pub fn app(args: TokenStream, input: TokenStream) -> TokenStream {
-    // use the standard software pass provided by rtic-sw-pass crate
-    let sw_pass = SoftwarePass::new(SwPassBackend);
-    // use the standard deadline to priority pass provided bp the rtic-deadline-pass crate
-    #[cfg(feature = "deadline-pass")]
-    let deadline_pass = DeadlineToPriorityPass::new(MAX_TASK_PRIORITY);
+    let run_app = || {
+        let mut builder = RticMacroBuilder::new(args, input);
 
-    let mut builder = RticMacroBuilder::new(HippoRtic);
-    #[cfg(feature = "deadline-pass")]
-    {
-        builder.bind_pre_core_pass(deadline_pass); // run deadline to priority pass first
-        println!("--- deadline pass added --- ");
-    }
-    builder.bind_pre_core_pass(sw_pass); // run software pass second
-    builder.build_rtic_macro(args, input)
+        // use the standard deadline to priority pass provided bp the rtic-deadline-pass crate
+        if cfg!(feature = "deadline-pass") {
+            let deadline_pass = DeadlineToPriorityPass::new(MAX_TASK_PRIORITY);
+            let _artifacts = builder.run_intermediate_pass(deadline_pass)?; // run deadline to priority pass first
+            println!("--- deadline pass added --- ");
+        }
+
+        // use the standard software pass provided by rtic-sw-pass crate
+        let sw_pass = SoftwarePass::new(SwPassBackend);
+        let _artifacts = builder.run_intermediate_pass(sw_pass)?; // run software pass second
+        builder.run_core_pass(HippoRtic)
+    };
+    
+    run_app().unwrap_or_else(|e| e.into_compile_error().into())
 }
 
 // =========================================== Trait implementations ===================================================

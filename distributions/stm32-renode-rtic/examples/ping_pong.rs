@@ -7,7 +7,6 @@
 //! core0= `RUSTFLAGS='--cfg core="0"' cargo clippy --example ping_pong`
 //! core1= `RUSTFLAGS='--cfg core="1"' cargo clippy --example ping_pong`
 #![allow(unused)]
-
 #![no_std]
 #![no_main]
 

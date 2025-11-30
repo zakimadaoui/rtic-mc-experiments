@@ -7,32 +7,45 @@ use syn::{parse_quote, ItemFn};
 
 extern crate proc_macro;
 
-struct AtalantaRtic;
-
-#[cfg(feature = "pcs-pass")]
 use pcs_pass::PcsPass;
 use rtic_sw_pass::SoftwarePass;
 
 const MIN_TASK_PRIORITY: u16 = 1; // lowest Atalanta priority
 
+struct AtalantaRtic {
+    pcs_dispatchers: Vec<Ident>,
+}
+
+impl AtalantaRtic {
+    fn new(pcs_dispatchers: Vec<Ident>) -> Self {
+        Self { pcs_dispatchers }
+    }
+}
+
 #[proc_macro_attribute]
 pub fn app(args: TokenStream, input: TokenStream) -> TokenStream {
-    let mut builder = RticMacroBuilder::new(AtalantaRtic);
+    let run_app = || {
+        let mut builder = RticMacroBuilder::new(args, input);
 
-    // use the standard software pass provided by rtic-sw-pass crate
-    let sw_pass = SoftwarePass::new(SwPassBackend);
-    builder.bind_pre_core_pass(sw_pass);
+        // use the standard software pass provided by rtic-sw-pass crate
+        let sw_pass = SoftwarePass::new(SwPassBackend);
+        builder.run_intermediate_pass(sw_pass)?;
 
-    #[cfg(feature = "pcs-pass")]
-    {
-        // Number of PCS slots provided by hardware
-        const MAX_NUM_PCS: usize = 4;
-        let pcs_pass = PcsPass::new(MAX_NUM_PCS);
-        builder.bind_pre_core_pass(pcs_pass);
-        println!("--- PCS pass added --- ");
-    }
+        let pcs_dispatchers = if cfg!(feature = "pcs-pass") {
+            // Number of PCS slots provided by hardware
+            const MAX_NUM_PCS: usize = 4;
+            let pcs_pass = PcsPass::new(MAX_NUM_PCS);
+            let artifacts = builder.run_intermediate_pass(pcs_pass)?;
+            println!("--- PCS pass added --- ");
+            artifacts.pcs_dispatchers
+        } else {
+            Vec::new()
+        };
 
-    builder.build_rtic_macro(args, input)
+        builder.run_core_pass(AtalantaRtic::new(pcs_dispatchers))
+    };
+
+    run_app().unwrap_or_else(|e| e.into_compile_error().into())
 }
 
 // =========================================== Trait implementations ===================================================
@@ -58,11 +71,7 @@ impl CorePassBackend for AtalantaRtic {
             const PCS_FALSE: bool = false;
         });
 
-        let pcs_dispatchers = if cfg!(feature = "pcs-pass") {
-            pcs_pass::PCS_DISPATCHERS.with(|ds| ds.borrow().clone())
-        } else {
-            vec![]
-        };
+        let pcs_dispatchers = &self.pcs_dispatchers;
         if !pcs_dispatchers.is_empty() {
             out.extend(quote! {
                 const PCS_TRUE: bool = true;

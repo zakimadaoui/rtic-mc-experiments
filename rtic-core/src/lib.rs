@@ -15,7 +15,7 @@ use std::sync::atomic::AtomicU16;
 use std::sync::atomic::Ordering;
 
 use proc_macro2::{Ident, TokenStream as TokenStream2};
-use syn::{parse_macro_input, ItemMod};
+use syn::ItemMod;
 
 pub use common_internal::rtic_functions;
 pub use common_internal::rtic_traits;
@@ -47,12 +47,15 @@ static DEFAULT_TASK_PRIORITY: AtomicU16 = AtomicU16::new(0);
 /// then will take over from there to generate all the necessary logic and expand the user application further to an
 /// application understandable by the Rust compiler.
 pub trait RticPass {
+    /// Associated type that defines the artifacts left after running the compilation pass.
+    /// Those artifacts can, for example, be used by subsequent passes or their backends  
+    type PassArtifacts;
     /// Runs the (partial) proc-macro logic that allows extending the basic RTIC syntax
     fn run_pass(
         &self,
         args: TokenStream2,
         app_mod: ItemMod,
-    ) -> syn::Result<(TokenStream2, ItemMod)>;
+    ) -> syn::Result<(TokenStream2, ItemMod, Self::PassArtifacts)>;
 
     /// Returns a human readable name/alias used to identify the pass. This identifier will show np in errors for example
     /// to help knowing exactly which compilation pass has failed in that case.
@@ -63,83 +66,60 @@ pub trait RticPass {
 /// By providing the necessary low-level hardware bindings and binding additional **Compilation Passes**
 /// in the case syntax extensions are desired.
 pub struct RticMacroBuilder {
-    core: Box<dyn CorePassBackend>,
-    pre_std_passes: Vec<Box<dyn RticPass>>,
-    post_std_passes: Vec<Box<dyn RticPass>>,
+    args: Option<TokenStream2>,
+    app_mod: Option<ItemMod>,
 }
 
 impl RticMacroBuilder {
-    pub fn new<T: CorePassBackend + 'static>(core_impl: T) -> Self {
+    pub fn new(args: TokenStream, input: TokenStream) -> Self {
+        let args = TokenStream2::from(args);
+        let app_mod =
+            syn::parse::<ItemMod>(input).expect("Should be ItemMod. TODO: return error instead..");
         Self {
-            core: Box::new(core_impl),
-            pre_std_passes: Vec::new(),
-            post_std_passes: Vec::new(),
+            args: Some(args),
+            app_mod: Some(app_mod),
         }
     }
 
-    /// Binds a **Compilation Pass** that will run before the **Core Pass**
-    pub fn bind_pre_core_pass<P: RticPass + 'static>(&mut self, pass: P) -> &mut Self {
-        self.pre_std_passes.push(Box::new(pass));
-        self
+    /// Runs a compilation pass to perform an intermediate user application expansion.  
+    pub fn run_intermediate_pass<Artifacts, P: RticPass<PassArtifacts = Artifacts>>(
+        &mut self,
+        pass: P,
+    ) -> syn::Result<Artifacts> {
+        // safe to unwrap as the `args` and `app_mod` always have a value.
+        let (args, app_mod) = (self.args.take().unwrap(), self.app_mod.take().unwrap());
+        let (args, app_mod, artifacts) = pass.run_pass(args, app_mod).inspect_err(|_| {
+            eprintln!(
+                "An error occurred during the `{}` compilation pass",
+                pass.pass_name()
+            )
+        })?;
+
+        self.args = Some(args);
+        self.app_mod = Some(app_mod);
+        Ok(artifacts)
     }
 
-    /// Binds a **Compilation Pass** that will run after the **Core Pass**
-    pub fn bind_post_core_pass<P: RticPass + 'static>(&mut self, pass: P) -> &mut Self {
-        self.post_std_passes.push(Box::new(pass));
-        self
-    }
-
-    /// Once the **CorePass** low level hardware bindings are provided, and a selection of
-    /// **Compilation Passes** are bound too, use this method to run the **app** proc macro logic.
-    ///
-    /// Returns a TokenStream of the expanded user application.
-    pub fn build_rtic_macro(self, args: TokenStream, input: TokenStream) -> TokenStream {
+    /// Performs the final user application expansion in which the application code is only comprised of init, idle, hw tasks and resources
+    /// # Returns
+    /// On success, the [TokenStream] representing the fully expanded user application  
+    pub fn run_core_pass<B: CorePassBackend + 'static>(
+        self,
+        core_backend: B,
+    ) -> syn::Result<TokenStream> {
         // init statics
-        DEFAULT_TASK_PRIORITY.store(self.core.default_task_priority(), Ordering::Relaxed);
+        DEFAULT_TASK_PRIORITY.store(core_backend.default_task_priority(), Ordering::Relaxed);
 
-        let mut args = TokenStream2::from(args);
-        let mut app_mod = parse_macro_input!(input as ItemMod);
-
-        // First, run extra passes (in the order of their insertion)
-        for pass in self.pre_std_passes {
-            let (out_args, out_mod) = match pass.run_pass(args, app_mod) {
-                Ok(out) => out,
-                Err(e) => {
-                    eprintln!(
-                        "An error occurred during the `{}` compilation pass",
-                        pass.pass_name()
-                    );
-                    return e.to_compile_error().into();
-                }
-            };
-            app_mod = out_mod;
-            args = out_args;
-        }
-
-        // parse user application comprised of init, idle, and other tasks and resources
-        let mut parsed_app = match App::parse(args, app_mod) {
-            Ok(parsed) => parsed,
-            Err(e) => {
-                eprintln!("An error occurred during the `core` compilation pass during the user code `parsing` phase.");
-                return e.to_compile_error().into();
-            }
-        };
+        // parse user application comprised of init, idle, hw tasks and resources
+        let mut parsed_app =  App::parse(self.args.unwrap(), self.app_mod.unwrap()).inspect_err(|_| eprintln!("An error occurred during the `core` compilation pass during the user code `parsing` phase."))?;
 
         // update resource ceilings and gather more information about the application
-        let analysis = match Analysis::run(&mut parsed_app) {
-            Ok(a) => a,
-            Err(e) => {
-                eprintln!("An error occurred during the `core` compilation pass  during the user code `analysis` phase.");
-                return e.to_compile_error().into();
-            }
-        };
+        let analysis = Analysis::run(&mut parsed_app).inspect_err(|_| eprintln!("An error occurred during the `core` compilation pass  during the user code `analysis` phase."))?;
 
         // Before starting code generation, ask distribution for further checks
-        if let Err(e) = self.core.pre_codegen_validation(&parsed_app, &analysis) {
-            return e.to_compile_error().into();
-        }
+        core_backend.pre_codegen_validation(&parsed_app, &analysis)?;
 
-        let code = CodeGen::new(self.core.as_ref(), &parsed_app, &analysis).run();
+        let code = CodeGen::new(&core_backend, &parsed_app, &analysis).run();
 
         #[cfg(feature = "debug_expand")]
         if let Ok(binary_name) = std::env::var("CARGO_BIN_NAME") {
@@ -151,7 +131,6 @@ impl RticMacroBuilder {
                 );
             }
         }
-
-        code.into()
+        Ok(code.into())
     }
 }
